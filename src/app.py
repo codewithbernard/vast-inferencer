@@ -21,7 +21,7 @@ from starlette.responses import Response
 
 from vast_inferencer.config import get_settings
 from vast_inferencer.logging import configure_logging, log_event
-from vast_inferencer.routes import generations, health, internal
+from vast_inferencer.routes import generations, health, internal, playground
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Vast Inferencer", lifespan=lifespan)
+app.include_router(playground.router)
 app.include_router(health.router)
 app.include_router(generations.router)
 app.include_router(internal.router)

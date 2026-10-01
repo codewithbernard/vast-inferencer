@@ -24,6 +24,8 @@ cp .env.example .env
 uvicorn app:app --app-dir src --reload
 ```
 
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the request playground. Paste your bearer key in the form (the same value as `API_BEARER_KEY`); it is kept in page memory only and is sent only with `POST /v1/generations`.
+
 ## Configuration
 
 Set these in `.env` locally and as encrypted environment variables on Vercel:

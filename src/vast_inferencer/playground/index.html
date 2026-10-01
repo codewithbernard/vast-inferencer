@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vast Inferencer — Request playground</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f1115;
+        --surface: #171a21;
+        --surface-2: #1e222b;
+        --border: #2a3140;
+        --text: #e8eaef;
+        --muted: #9aa3b5;
+        --accent: #5b8def;
+        --accent-hover: #7aa3f5;
+        --danger: #f07178;
+        --success: #7fd992;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --radius: 10px;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f6fa;
+          --surface: #ffffff;
+          --surface-2: #f8f9fc;
+          --border: #d8dee9;
+          --text: #1a1f2e;
+          --muted: #5c677d;
+          --accent: #2563eb;
+          --accent-hover: #1d4ed8;
+          --danger: #dc2626;
+          --success: #15803d;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.45;
+      }
+
+      header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      header h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+
+      header p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+        max-width: 52rem;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 1rem;
+        padding: 1rem 1.5rem 1.5rem;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 420px;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-2);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .panel-body {
+        padding: 1rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.875rem;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+      }
+
+      .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      input[type="text"],
+      input[type="password"],
+      select,
+      textarea {
+        width: 100%;
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 0.65rem;
+      }
+
+      textarea {
+        font-family: var(--mono);
+        font-size: 0.8125rem;
+        min-height: 10rem;
+        resize: vertical;
+        line-height: 1.5;
+      }
+
+      textarea.tall {
+        min-height: 14rem;
+        flex: 1;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        padding: 0.5rem 0.85rem;
+        font-size: 0.875rem;
+      }
+
+      button.primary {
+        background: var(--accent);
+        border-color: transparent;
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button.primary:hover:not(:disabled) {
+        background: var(--accent-hover);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .method-url {
+        font-family: var(--mono);
+        font-size: 0.8125rem;
+        padding: 0.65rem 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        word-break: break-all;
+      }
+
+      .method-url span {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      #responseMeta {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        min-height: 1.25rem;
+      }
+
+      #responseMeta.ok {
+        color: var(--success);
+      }
+
+      #responseMeta.err {
+        color: var(--danger);
+      }
+
+      pre#responseBody {
+        margin: 0;
+        flex: 1;
+        min-height: 12rem;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 0.8125rem;
+        padding: 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .notice {
+        font-size: 0.75rem;
+        color: var(--muted);
+        padding: 0.65rem 0.75rem;
+        background: var(--surface-2);
+        border-radius: 8px;
+        border: 1px dashed var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Generation request playground</h1>
+      <p>
+        Send authenticated <code>POST /v1/generations</code> requests from this page. Your bearer key
+        stays in memory only — it is not saved to storage or logged.
+      </p>
+    </header>
+    <main>
+      <section class="panel" aria-labelledby="request-heading">
+        <div class="panel-head" id="request-heading">Request</div>
+        <div class="panel-body">
+          <div class="method-url"><span>POST</span> /v1/generations</div>
+          <label>
+            Bearer key
+            <span class="hint">Paste your API bearer key (same value as <code>API_BEARER_KEY</code>)</span>
+            <input
+              id="bearerKey"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Bearer token"
+            />
+          </label>
+          <label>
+            Project ID
+            <select id="projectId"></select>
+          </label>
+          <label>
+            Workflow JSON
+            <span class="hint">ComfyUI API-format workflow object</span>
+            <textarea id="workflowJson" class="tall" spellcheck="false"></textarea>
+          </label>
+          <label>
+            Webhook extra params (optional)
+            <span class="hint">JSON object merged into the project webhook extras</span>
+            <textarea id="webhookExtra" spellcheck="false">{}</textarea>
+          </label>
+          <div class="row">
+            <button type="button" class="primary" id="sendBtn">Send request</button>
+            <button type="button" id="formatBtn">Format JSON</button>
+            <button type="button" id="resetBtn">Reset sample</button>
+          </div>
+          <p class="notice" id="validationError" hidden role="alert"></p>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="response-heading">
+        <div class="panel-head">
+          <span id="response-heading">Response</span>
+          <button type="button" id="copyBtn" disabled>Copy body</button>
+        </div>
+        <div class="panel-body">
+          <div id="responseMeta">No request sent yet.</div>
+          <pre id="responseBody">{}</pre>
+        </div>
+      </section>
+    </main>
+    <script id="project-options" type="application/json">__PROJECT_IDS__</script>
+    <script>
+      (function () {
+        const sampleWorkflow = {
+          "90": {
+            class_type: "CLIPLoader",
+            inputs: { clip_name: "umt5" },
+          },
+        };
+
+        const bearerKey = document.getElementById("bearerKey");
+        const projectId = document.getElementById("projectId");
+        const workflowJson = document.getElementById("workflowJson");
+        const webhookExtra = document.getElementById("webhookExtra");
+        const sendBtn = document.getElementById("sendBtn");
+        const formatBtn = document.getElementById("formatBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        const copyBtn = document.getElementById("copyBtn");
+        const responseMeta = document.getElementById("responseMeta");
+        const responseBody = document.getElementById("responseBody");
+        const validationError = document.getElementById("validationError");
+
+        function parseProjectIds() {
+          try {
+            const raw = document.getElementById("project-options").textContent.trim();
+            const ids = JSON.parse(raw);
+            if (Array.isArray(ids) && ids.length > 0) {
+              return ids;
+            }
+          } catch (_) {
+            /* ignore */
+          }
+          return ["ai-ofm-studio"];
+        }
+
+        function initProjectSelect() {
+          const ids = parseProjectIds();
+          projectId.replaceChildren();
+          for (const id of ids) {
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = id;
+            projectId.appendChild(opt);
+          }
+        }
+
+        function setValidation(message) {
+          if (!message) {
+            validationError.hidden = true;
+            validationError.textContent = "";
+            return;
+          }
+          validationError.hidden = false;
+          validationError.textContent = message;
+        }
+
+        function parseJsonField(text, fieldName) {
+          const trimmed = text.trim();
+          if (!trimmed) {
+            if (fieldName === "Webhook extra params") {
+              return {};
+            }
+            throw new Error(fieldName + " is required.");
+          }
+          try {
+            const value = JSON.parse(trimmed);
+            if (typeof value !== "object" || value === null || Array.isArray(value)) {
+              throw new Error(fieldName + " must be a JSON object.");
+            }
+            return value;
+          } catch (err) {
+            if (err instanceof SyntaxError) {
+              throw new Error(fieldName + " is not valid JSON.");
+            }
+            throw err;
+          }
+        }
+
+        function formatEditors() {
+          try {
+            const workflow = parseJsonField(workflowJson.value, "Workflow JSON");
+            workflowJson.value = JSON.stringify(workflow, null, 2);
+            const extras = parseJsonField(webhookExtra.value, "Webhook extra params");
+            webhookExtra.value = JSON.stringify(extras, null, 2);
+            setValidation("");
+          } catch (err) {
+            setValidation(err.message || String(err));
+          }
+        }
+
+        function resetSample() {
+          workflowJson.value = JSON.stringify(sampleWorkflow, null, 2);
+          webhookExtra.value = "{}";
+          setValidation("");
+        }
+
+        async function sendRequest() {
+          setValidation("");
+          const key = bearerKey.value.trim();
+          if (!key) {
+            setValidation("Bearer key is required.");
+            return;
+          }
+
+          let workflow;
+          let webhook_extra_params;
+          try {
+            workflow = parseJsonField(workflowJson.value, "Workflow JSON");
+            webhook_extra_params = parseJsonField(
+              webhookExtra.value,
+              "Webhook extra params",
+            );
+          } catch (err) {
+            setValidation(err.message || String(err));
+            return;
+          }
+
+          const payload = {
+            project_id: projectId.value,
+            workflow_json: workflow,
+            webhook_extra_params,
+          };
+
+          sendBtn.disabled = true;
+          responseMeta.className = "";
+          responseMeta.textContent = "Sending…";
+          copyBtn.disabled = true;
+
+          const started = performance.now();
+          try {
+            const res = await fetch("/v1/generations", {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer " + key,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
+            const elapsed = Math.round(performance.now() - started);
+            const text = await res.text();
+            let bodyDisplay = text;
+            try {
+              bodyDisplay = JSON.stringify(JSON.parse(text), null, 2);
+            } catch (_) {
+              /* keep raw */
+            }
+            responseBody.textContent = bodyDisplay || "(empty body)";
+            copyBtn.disabled = !bodyDisplay;
+
+            if (res.ok) {
+              responseMeta.className = "ok";
+              responseMeta.textContent =
+                "HTTP " + res.status + " · " + elapsed + " ms";
+            } else {
+              responseMeta.className = "err";
+              responseMeta.textContent =
+                "HTTP " + res.status + " · " + elapsed + " ms";
+            }
+          } catch (err) {
+            responseMeta.className = "err";
+            responseMeta.textContent = "Network error";
+            responseBody.textContent = String(err.message || err);
+            copyBtn.disabled = false;
+          } finally {
+            sendBtn.disabled = false;
+          }
+        }
+
+        async function copyResponse() {
+          const text = responseBody.textContent || "";
+          if (!text) return;
+          try {
+            await navigator.clipboard.writeText(text);
+            copyBtn.textContent = "Copied";
+            setTimeout(function () {
+              copyBtn.textContent = "Copy body";
+            }, 1200);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+
+        initProjectSelect();
+        resetSample();
+        formatBtn.addEventListener("click", formatEditors);
+        resetBtn.addEventListener("click", resetSample);
+        sendBtn.addEventListener("click", sendRequest);
+        copyBtn.addEventListener("click", copyResponse);
+      })();
+    </script>
+  </body>
+</html>

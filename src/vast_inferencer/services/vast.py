@@ -9,11 +9,10 @@ from vast_inferencer.limits import (
     VAST_REQUEST_TIMEOUT_SECONDS,
     VAST_WORKER_TIMEOUT_SECONDS,
 )
-from vast_inferencer.models import GenerationJob
-from vast_inferencer.registry import ProjectConfig
-from vast_inferencer.services.projects import get_project
 
 GENERATE_SYNC_ROUTE = "/generate/sync"
+_DROPPED_RESULT_KEYS = {"auth_data"}
+
 
 class VastTransportError(Exception):
     def __init__(self, status_code: int | None = None) -> None:
@@ -21,40 +20,46 @@ class VastTransportError(Exception):
         super().__init__("Vast request failed")
 
 
-def build_vast_payload(project: ProjectConfig, job: GenerationJob) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+def build_vast_payload(
+    *,
+    generation_id: str,
+    project_id: str,
+    workflow_json: dict[str, Any],
+    webhook_extra_params: dict[str, Any],
+    s3_access_key_id: str,
+    s3_secret_access_key: str,
+    s3_endpoint_url: str,
+    s3_bucket_name: str,
+    s3_region: str,
+    webhook_secret: str,
+) -> dict[str, Any]:
+    extra_params = dict(webhook_extra_params)
+    extra_params["project_id"] = project_id
+    extra_params["generation_id"] = generation_id
+    return {
         "input": {
-            "request_id": job.request_id,
-            "workflow_json": job.workflow_json,
+            "request_id": generation_id,
+            "workflow_json": workflow_json,
             "s3": {
-                "access_key_id": project.s3.access_key_id.get_secret_value(),
-                "secret_access_key": project.s3.secret_access_key.get_secret_value(),
-                "endpoint_url": project.s3.endpoint_url,
-                "bucket_name": project.s3.bucket_name,
-                "region": project.s3.region,
+                "access_key_id": s3_access_key_id,
+                "secret_access_key": s3_secret_access_key,
+                "endpoint_url": s3_endpoint_url,
+                "bucket_name": s3_bucket_name,
+                "region": s3_region,
+            },
+            "webhook": {
+                "url": get_settings().comfyui_webhook_url,
+                "secret": webhook_secret,
+                "extra_params": extra_params,
             },
         }
     }
-    if project.webhook is not None:
-        extra_params = {**project.webhook.extra_params, **job.webhook_extra_params}
-        extra_params["request_id"] = job.request_id
-        webhook: dict[str, Any] = {
-            "url": str(project.webhook.url),
-            "extra_params": extra_params,
-        }
-        if project.webhook.secret is not None:
-            webhook["secret"] = project.webhook.secret.get_secret_value()
-        payload["input"]["webhook"] = webhook
-    return payload
 
 
-async def run_generation_job(job: GenerationJob) -> None:
+async def call_generate_sync(endpoint_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     settings = get_settings()
-    project = get_project(job.project_id)
-    payload = build_vast_payload(project, job)
     async with Serverless(api_key=settings.vast_api_key.get_secret_value()) as client:
-        endpoint = await client.get_endpoint(name=project.endpoint_name)
-        # endpoint.request() cannot set worker_timeout, so call the queue API directly.
+        endpoint = await client.get_endpoint(name=endpoint_name)
         request = client.queue_endpoint_request(
             endpoint=endpoint,
             worker_route=GENERATE_SYNC_ROUTE,
@@ -66,6 +71,27 @@ async def run_generation_job(job: GenerationJob) -> None:
             max_retries=VAST_MAX_RETRIES,
         )
         result = await request
-    if not isinstance(result, dict) or not result.get("ok"):
-        status_code = result.get("status") if isinstance(result, dict) else None
-        raise VastTransportError(status_code if isinstance(status_code, int) else None)
+    if not isinstance(result, dict):
+        raise VastTransportError()
+    return _public_result(result)
+
+
+def _public_result(result: dict[str, Any]) -> dict[str, Any]:
+    url = result.get("url")
+    if isinstance(url, str) and "?" in url:
+        url = url.split("?", 1)[0]
+    stored: dict[str, Any] = {
+        "response": result.get("response"),
+        "ok": result.get("ok"),
+        "status": result.get("status"),
+        "latency": result.get("latency"),
+        "url": url,
+        "request_idx": result.get("request_idx"),
+    }
+    if not isinstance(result.get("response"), dict):
+        text = result.get("text")
+        if isinstance(text, str):
+            stored["text"] = text[:4000]
+    for key in _DROPPED_RESULT_KEYS:
+        stored.pop(key, None)
+    return stored

@@ -1,9 +1,29 @@
 import logging
 
 from vast_inferencer.config import get_settings
+from vast_inferencer.sanitize import REDACTED
 
 _LOGGER_NAME = "vast_inferencer"
-_SAFE_FIELDS = {"request_id", "project_id", "status_code", "route", "error_type"}
+_SAFE_FIELDS = {
+    "request_id",
+    "generation_id",
+    "project_id",
+    "inference_endpoint_id",
+    "vast_endpoint_name",
+    "status_code",
+    "route",
+    "error_type",
+    "from_status",
+    "to_status",
+    "queued_at",
+    "started_at",
+    "completed_at",
+    "queue_ms",
+    "generation_ms",
+    "total_ms",
+    "source",
+    "error_message",
+}
 _REDACTING = False
 
 
@@ -38,6 +58,13 @@ def log_event(level: int, event: str, **fields: object) -> None:
     logging.getLogger(_LOGGER_NAME).log(level, "%s %s", event, safe)
 
 
+def log_transition(*, failed: bool, **fields: object) -> None:
+    message = fields.get("error_message")
+    if isinstance(message, str):
+        fields["error_message"] = message[:300]
+    log_event(logging.ERROR if failed else logging.INFO, "generation_transition", **fields)
+
+
 def _attach_filter(logger: logging.Logger) -> None:
     if not any(isinstance(item, RedactingFilter) for item in logger.filters):
         logger.addFilter(RedactingFilter())
@@ -53,5 +80,6 @@ def _redact(message: str) -> str:
         return message
     redacted = message
     for secret in sorted(secrets, key=len, reverse=True):
-        redacted = redacted.replace(secret, "[redacted]")
+        if len(secret) >= 8:
+            redacted = redacted.replace(secret, REDACTED)
     return redacted

@@ -1,12 +1,17 @@
 [project]
 name = "vast-inferencer"
 version = "0.1.0"
-description = "Stateless FastAPI service that queues Vast Serverless WAN generations through QStash."
+description = "FastAPI control plane for Vast Serverless ComfyUI generations."
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
+    "cryptography>=44.0.0",
     "fastapi>=0.115.0",
+    "httpx>=0.28.0",
     "pydantic-settings>=2.6.0",
     "qstash>=3.4.0",
+    "sqlalchemy[asyncio]>=2.0.36",
     "vastai>=1.8.2",
 ]
 
@@ -24,7 +29,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-vast_inferencer = ["playground/*.html"]
+vast_inferencer = ["playground/*.html", "admin/*.html"]
 
 [tool.vercel]
 entrypoint = "src.app:app"

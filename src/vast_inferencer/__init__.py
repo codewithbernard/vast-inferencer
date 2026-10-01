@@ -1,1 +1,1 @@
-"""FastAPI service that submits Vast Serverless generations through QStash."""
+"""FastAPI control plane for Vast Serverless ComfyUI generations."""

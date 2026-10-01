@@ -251,6 +251,7 @@
       <p>
         Send authenticated <code>POST /v1/generations</code> requests from this page. Your bearer key
         stays in memory only — it is not saved to storage or logged.
+        Manage endpoints, projects, and results in <a href="/admin">Admin</a>.
       </p>
     </header>
     <main>
@@ -270,7 +271,7 @@
             />
           </label>
           <label>
-            Project ID
+            Project
             <select id="projectId"></select>
           </label>
           <label>
@@ -328,18 +329,25 @@
           try {
             const raw = document.getElementById("project-options").textContent.trim();
             const ids = JSON.parse(raw);
-            if (Array.isArray(ids) && ids.length > 0) {
+            if (Array.isArray(ids)) {
               return ids;
             }
           } catch (_) {
             /* ignore */
           }
-          return ["ai-ofm-studio"];
+          return [];
         }
 
         function initProjectSelect() {
           const ids = parseProjectIds();
           projectId.replaceChildren();
+          if (ids.length === 0) {
+            const empty = document.createElement("option");
+            empty.value = "";
+            empty.textContent = "No projects yet";
+            projectId.appendChild(empty);
+            return;
+          }
           for (const id of ids) {
             const opt = document.createElement("option");
             opt.value = id;
@@ -403,6 +411,10 @@
           const key = bearerKey.value.trim();
           if (!key) {
             setValidation("Bearer key is required.");
+            return;
+          }
+          if (!projectId.value) {
+            setValidation("Create a project in Admin first.");
             return;
           }
 

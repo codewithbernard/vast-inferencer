@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from vast_inferencer.registry import PROJECTS
+from vast_inferencer.services.records import list_project_slugs
 
 router = APIRouter()
 
@@ -15,6 +15,6 @@ _PLAYGROUND_HTML = (
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def playground() -> HTMLResponse:
-    project_ids_json = json.dumps(sorted(PROJECTS.keys()))
+    project_ids_json = json.dumps(await list_project_slugs())
     html = _PLAYGROUND_HTML.replace("__PROJECT_IDS__", project_ids_json)
     return HTMLResponse(content=html)

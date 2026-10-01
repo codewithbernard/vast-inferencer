@@ -1,9 +1,15 @@
 from functools import lru_cache
 
+from cryptography.fernet import Fernet
 from pydantic import AnyHttpUrl, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from vast_inferencer.registry import configured_secret_values
+_remembered_secrets: set[str] = set()
+
+
+def remember_secret(value: str) -> None:
+    if len(value) >= 8:
+        _remembered_secrets.add(value)
 
 
 class Settings(BaseSettings):
@@ -20,12 +26,28 @@ class Settings(BaseSettings):
     qstash_next_signing_key: SecretStr
     public_app_url: AnyHttpUrl
     api_bearer_key: SecretStr
+    database_url: SecretStr
+    secrets_encryption_key: SecretStr
     log_level: str = "INFO"
 
     @field_validator("qstash_url", "public_app_url", mode="before")
     @classmethod
     def strip_url(cls, value: str) -> str:
         return str(value).strip().rstrip("/")
+
+    @field_validator("database_url", "secrets_encryption_key", mode="before")
+    @classmethod
+    def strip_secret(cls, value: str) -> str:
+        return str(value).strip()
+
+    @field_validator("secrets_encryption_key")
+    @classmethod
+    def encryption_key_must_be_fernet(cls, value: SecretStr) -> SecretStr:
+        try:
+            Fernet(value.get_secret_value().encode())
+        except Exception:
+            raise ValueError("must be a url-safe Fernet key") from None
+        return value
 
     @property
     def public_base_url(self) -> str:
@@ -39,6 +61,10 @@ class Settings(BaseSettings):
     def internal_generation_url(self) -> str:
         return f"{self.public_base_url}/internal/generations"
 
+    @property
+    def comfyui_webhook_url(self) -> str:
+        return f"{self.public_base_url}/webhooks/comfyui"
+
     def secret_values(self) -> list[str]:
         values = [
             self.vast_api_key.get_secret_value(),
@@ -46,7 +72,9 @@ class Settings(BaseSettings):
             self.qstash_current_signing_key.get_secret_value(),
             self.qstash_next_signing_key.get_secret_value(),
             self.api_bearer_key.get_secret_value(),
-            *configured_secret_values(),
+            self.database_url.get_secret_value(),
+            self.secrets_encryption_key.get_secret_value(),
+            *_remembered_secrets,
         ]
         return [value for value in values if value]
 

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vast Inferencer — Admin</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f1115;
+        --surface: #171a21;
+        --surface-2: #1e222b;
+        --border: #2a3140;
+        --text: #e8eaef;
+        --muted: #9aa3b5;
+        --accent: #5b8def;
+        --accent-hover: #7aa3f5;
+        --danger: #f07178;
+        --success: #7fd992;
+        --warning: #e6c07b;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --radius: 10px;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f6fa;
+          --surface: #ffffff;
+          --surface-2: #f8f9fc;
+          --border: #d8dee9;
+          --text: #1a1f2e;
+          --muted: #5c677d;
+          --accent: #2563eb;
+          --accent-hover: #1d4ed8;
+          --danger: #dc2626;
+          --success: #15803d;
+          --warning: #a16207;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.45;
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem 1.5rem;
+        align-items: end;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      header h1 { margin: 0; font-size: 1.125rem; }
+      header p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+
+      nav { display: flex; gap: 0.75rem; align-items: center; }
+      nav a { color: var(--muted); text-decoration: none; font-size: 0.875rem; font-weight: 600; }
+      nav a.active, nav a:hover { color: var(--text); }
+
+      .key { font-size: 0.75rem; color: var(--muted); display: grid; gap: 0.3rem; min-width: 16rem; }
+
+      main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 2.5rem; display: grid; gap: 1rem; }
+
+      h2 { margin: 0; font-size: 1.05rem; }
+      h3 { margin: 0 0 0.6rem; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+      a { color: var(--accent); }
+      a:hover { color: var(--accent-hover); }
+
+      .page-head, .row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .muted { color: var(--muted); margin: 0; }
+      .error { color: var(--danger); margin: 0.5rem 0 0; }
+
+      .card, details {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem;
+      }
+
+      details summary { cursor: pointer; font-weight: 600; }
+
+      form { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+      label { display: grid; gap: 0.3rem; font-size: 0.75rem; color: var(--muted); }
+      input, select, textarea {
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.5rem 0.65rem;
+      }
+      textarea { min-height: 4.5rem; font-family: var(--mono); font-size: 0.8rem; }
+      button, .button {
+        font: inherit;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        padding: 0.45rem 0.75rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+      }
+      button.primary { background: var(--accent); border-color: transparent; color: white; }
+      button:disabled { opacity: 0.6; cursor: wait; }
+
+      .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+      table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+      th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+      th { font-size: 0.75rem; color: var(--muted); background: var(--surface-2); }
+      tr:last-child td { border-bottom: 0; }
+
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.1rem 0.5rem;
+        font-size: 0.75rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .badge.completed { color: var(--success); }
+      .badge.failed { color: var(--danger); }
+      .badge.running { color: var(--accent); }
+      .badge.queued { color: var(--warning); }
+      .badge.off { color: var(--danger); }
+
+      dl { display: grid; grid-template-columns: 10rem 1fr; gap: 0.35rem 0.75rem; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; overflow-wrap: anywhere; }
+
+      pre {
+        margin: 0;
+        padding: 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .bar { display: flex; height: 1.4rem; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+      .bar span { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; min-width: 0; overflow: hidden; }
+      .bar .preprocess { background: #3d4d6e; }
+      .bar .generation { background: var(--accent); color: white; }
+      .bar .postprocess { background: #2f6f4e; color: white; }
+      .outputs { display: grid; gap: 0.5rem; }
+      .output { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Vast Inferencer</h1>
+        <p>Endpoints, projects, and generation history. The bearer key stays in this page only.</p>
+      </div>
+      <nav>
+        <a href="#/endpoints" data-nav="endpoints">Endpoints</a>
+        <a href="#/projects" data-nav="projects">Projects</a>
+        <a href="#/generations" data-nav="generations">Generations</a>
+        <a href="/">Playground</a>
+      </nav>
+      <label class="key">
+        Bearer key
+        <input id="bearerKey" type="password" autocomplete="off" spellcheck="false" placeholder="API bearer key" />
+      </label>
+    </header>
+    <main id="view"></main>
+    <script>
+      const view = document.getElementById("view");
+      const bearerKey = document.getElementById("bearerKey");
+
+      function h(tag, props) {
+        const node = document.createElement(tag);
+        const children = Array.prototype.slice.call(arguments, 2);
+        Object.entries(props || {}).forEach(function (entry) {
+          const key = entry[0];
+          const value = entry[1];
+          if (value == null || value === false) return;
+          if (key === "class") node.className = value;
+          else if (key === "text") node.textContent = String(value);
+          else if (key.slice(0, 2) === "on" && typeof value === "function") {
+            node.addEventListener(key.slice(2).toLowerCase(), value);
+          } else node.setAttribute(key, value === true ? "" : String(value));
+        });
+        children.flat().forEach(function (child) {
+          if (child == null || child === false) return;
+          node.append(child.nodeType ? child : document.createTextNode(String(child)));
+        });
+        return node;
+      }
+
+      function messageFrom(data, status) {
+        if (!data || data.detail == null) return "HTTP " + status;
+        if (typeof data.detail === "string") return data.detail;
+        if (Array.isArray(data.detail)) {
+          return data.detail
+            .map(function (item) {
+              const loc = Array.isArray(item.loc) ? item.loc.filter(function (part) { return part !== "body"; }).join(".") : "";
+              return (loc ? loc + ": " : "") + (item.msg || "invalid");
+            })
+            .join("; ");
+        }
+        return "HTTP " + status;
+      }
+
+      async function api(path, options) {
+        const key = bearerKey.value.trim();
+        if (!key) throw new Error("Bearer key is required.");
+        const response = await fetch(path, {
+          method: options && options.method ? options.method : "GET",
+          headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+          body: options && options.body != null ? JSON.stringify(options.body) : undefined,
+        });
+        const text = await response.text();
+        let data = null;
+        if (text) {
+          try { data = JSON.parse(text); } catch (_) { data = { detail: text }; }
+        }
+        if (!response.ok) throw new Error(messageFrom(data, response.status));
+        return data;
+      }
+
+      function go(hash) {
+        if (location.hash === hash) render();
+        else location.hash = hash;
+      }
+
+      function shortId(id) { return String(id).slice(0, 8); }
+      function formatTime(value) {
+        if (!value) return "—";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+      }
+      function formatDuration(ms) {
+        if (ms == null) return "—";
+        if (ms < 1000) return ms + " ms";
+        const seconds = ms / 1000;
+        if (seconds < 60) return seconds.toFixed(1) + " s";
+        const minutes = Math.floor(seconds / 60);
+        return minutes + "m " + Math.round(seconds % 60) + "s";
+      }
+      function badge(status) { return h("span", { class: "badge " + status, text: status }); }
+      function jsonBlock(value) {
+        return h("pre", { text: value == null ? "—" : JSON.stringify(value, null, 2) });
+      }
+      function field(label, control) { return h("label", {}, label, control); }
+      function input(type, name, value, placeholder) {
+        const node = h("input", { type: type, name: name, placeholder: placeholder || "" });
+        if (value != null) node.value = value;
+        return node;
+      }
+
+      function generationTable(items) {
+        if (!items || !items.length) return h("p", { class: "muted", text: "No generations yet." });
+        return h("div", { class: "table-wrap" }, h("table", {},
+          h("thead", {}, h("tr", {},
+            ["ID", "Status", "Project", "Endpoint", "Created", "Queue", "Generation", "Total"].map(function (label) {
+              return h("th", { text: label });
+            })
+          )),
+          h("tbody", {}, items.map(function (item) {
+            return h("tr", {},
+              h("td", {}, h("a", { href: "#/generations/" + item.id, title: item.id, text: shortId(item.id) })),
+              h("td", {}, badge(item.status)),
+              h("td", {}, h("a", { href: "#/projects/" + item.project_id, text: item.project_name })),
+              h("td", {}, h("a", { href: "#/endpoints/" + item.inference_endpoint_id, text: item.inference_endpoint_name })),
+              h("td", { text: formatTime(item.created_at) }),
+              h("td", { text: formatDuration(item.queue_ms) }),
+              h("td", { text: formatDuration(item.generation_ms) }),
+              h("td", { text: formatDuration(item.total_ms) })
+            );
+          }))
+        ));
+      }
+
+      function endpointForm(current) {
+        const form = h("form", {},
+          h("div", { class: "grid" },
+            field("Name", input("text", "name", current && current.name, "MiniMax H3 Production")),
+            field("Vast endpoint name", input("text", "vast_endpoint_name", current && current.vast_endpoint_name, "palchemy-h3")),
+            field("Enabled", (function () {
+              const box = input("checkbox", "enabled");
+              box.checked = current ? current.enabled : true;
+              return box;
+            })())
+          ),
+          h("div", { class: "row" }, h("button", { class: "primary", type: "submit", text: current ? "Save endpoint" : "Create endpoint" }))
+        );
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          const data = new FormData(form);
+          const body = {
+            name: String(data.get("name") || "").trim(),
+            vast_endpoint_name: String(data.get("vast_endpoint_name") || "").trim(),
+            enabled: form.elements.enabled.checked,
+          };
+          form.querySelectorAll(".error").forEach(function (node) { node.remove(); });
+          try {
+            const saved = current
+              ? await api("/v1/inference-endpoints/" + current.id, { method: "PATCH", body: body })
+              : await api("/v1/inference-endpoints", { method: "POST", body: body });
+            go("#/endpoints/" + saved.id);
+          } catch (error) {
+            form.append(h("p", { class: "error", text: error.message }));
+          }
+        });
+        return form;
+      }
+
+      function projectForm(endpoints, current) {
+        const endpointSelect = h("select", { name: "inference_endpoint_id" },
+          endpoints.map(function (endpoint) {
+            const option = h("option", { value: endpoint.id, text: endpoint.name + " (" + endpoint.vast_endpoint_name + ")" });
+            if (current && current.inference_endpoint_id === endpoint.id) option.selected = true;
+            return option;
+          })
+        );
+        const form = h("form", {},
+          h("div", { class: "grid" },
+            field("Name", input("text", "name", current && current.name)),
+            field("Slug", input("text", "slug", current && current.slug, "ai-ofm-studio")),
+            field("Inference endpoint", endpointSelect),
+            field("S3 endpoint URL", input("text", "s3_endpoint_url", current && current.s3.endpoint_url)),
+            field("Bucket", input("text", "s3_bucket_name", current && current.s3.bucket_name)),
+            field("Region", input("text", "s3_region", current && current.s3.region)),
+            field(current ? "Access key (blank keeps current)" : "Access key", input("password", "s3_access_key_id")),
+            field(current ? "Secret key (blank keeps current)" : "Secret key", input("password", "s3_secret_access_key")),
+            field("Webhook URL", input("url", "webhook_url", current && current.webhook_url)),
+            field(current ? "Webhook secret (blank keeps current)" : "Webhook secret (optional)", input("password", "webhook_secret"))
+          ),
+          h("div", { class: "row" }, h("button", { class: "primary", type: "submit", text: current ? "Save project" : "Create project" }))
+        );
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          const data = new FormData(form);
+          const secret = String(data.get("s3_secret_access_key") || "");
+          const access = String(data.get("s3_access_key_id") || "");
+          const webhookSecret = String(data.get("webhook_secret") || "");
+          let body;
+          if (current) {
+            body = {
+              name: String(data.get("name") || "").trim(),
+              slug: String(data.get("slug") || "").trim(),
+              inference_endpoint_id: String(data.get("inference_endpoint_id") || ""),
+              s3_endpoint_url: String(data.get("s3_endpoint_url") || "").trim(),
+              s3_bucket_name: String(data.get("s3_bucket_name") || "").trim(),
+              s3_region: String(data.get("s3_region") || "").trim(),
+              webhook_url: String(data.get("webhook_url") || "").trim() || null,
+            };
+            if (access) body.s3_access_key_id = access;
+            if (secret) body.s3_secret_access_key = secret;
+            if (webhookSecret) body.webhook_secret = webhookSecret;
+          } else {
+            body = {
+              name: String(data.get("name") || "").trim(),
+              slug: String(data.get("slug") || "").trim(),
+              inference_endpoint_id: String(data.get("inference_endpoint_id") || ""),
+              s3: {
+                endpoint_url: String(data.get("s3_endpoint_url") || "").trim(),
+                bucket_name: String(data.get("s3_bucket_name") || "").trim(),
+                region: String(data.get("s3_region") || "").trim(),
+                access_key_id: access,
+                secret_access_key: secret,
+              },
+              webhook_url: String(data.get("webhook_url") || "").trim() || null,
+            };
+            if (webhookSecret) body.webhook_secret = webhookSecret;
+          }
+          form.querySelectorAll(".error").forEach(function (node) { node.remove(); });
+          try {
+            const saved = current
+              ? await api("/v1/projects/" + current.id, { method: "PATCH", body: body })
+              : await api("/v1/projects", { method: "POST", body: body });
+            go("#/projects/" + saved.id);
+          } catch (error) {
+            form.append(h("p", { class: "error", text: error.message }));
+          }
+        });
+        return form;
+      }
+
+      async function renderEndpoints() {
+        const items = await api("/v1/inference-endpoints");
+        view.replaceChildren(
+          h("div", { class: "page-head" }, h("h2", { text: "Inference endpoints" })),
+          h("details", {}, h("summary", { text: "New endpoint" }), endpointForm(null)),
+          items.length ? h("div", { class: "table-wrap" }, h("table", {},
+            h("thead", {}, h("tr", {}, ["Name", "Vast name", "State", "Projects", "Created"].map(function (label) {
+              return h("th", { text: label });
+            }))),
+            h("tbody", {}, items.map(function (item) {
+              return h("tr", {},
+                h("td", {}, h("a", { href: "#/endpoints/" + item.id, text: item.name })),
+                h("td", { text: item.vast_endpoint_name }),
+                h("td", {}, h("span", {
+                  class: "badge " + (item.enabled ? "completed" : "off"),
+                  text: item.enabled ? "enabled" : "disabled",
+                })),
+                h("td", { text: String(item.project_count) }),
+                h("td", { text: formatTime(item.created_at) })
+              );
+            }))
+          )) : h("p", { class: "muted", text: "No inference endpoints yet." })
+        );
+      }
+
+      async function renderEndpoint(id) {
+        const item = await api("/v1/inference-endpoints/" + id);
+        view.replaceChildren(
+          h("div", { class: "page-head" },
+            h("h2", { text: item.name }),
+            h("a", { href: "#/endpoints", text: "All endpoints" })
+          ),
+          h("section", { class: "card" },
+            h("h3", { text: "Endpoint" }),
+            h("dl", {},
+              h("dt", { text: "Vast endpoint" }), h("dd", { text: item.vast_endpoint_name }),
+              h("dt", { text: "State" }), h("dd", { text: item.enabled ? "enabled" : "disabled" }),
+              h("dt", { text: "Created" }), h("dd", { text: formatTime(item.created_at) })
+            )
+          ),
+          h("details", { open: "open" }, h("summary", { text: "Edit endpoint" }), endpointForm(item)),
+          h("section", { class: "card" },
+            h("h3", { text: "Projects" }),
+            item.projects.length ? h("div", { class: "table-wrap" }, h("table", {},
+              h("thead", {}, h("tr", {}, ["Name", "Slug", "Webhook"].map(function (label) { return h("th", { text: label }); }))),
+              h("tbody", {}, item.projects.map(function (project) {
+                return h("tr", {},
+                  h("td", {}, h("a", { href: "#/projects/" + project.id, text: project.name })),
+                  h("td", { text: project.slug }),
+                  h("td", { text: project.webhook_url || "—" })
+                );
+              }))
+            )) : h("p", { class: "muted", text: "No projects use this endpoint." })
+          ),
+          h("section", {}, h("h3", { text: "Recent generations" }), generationTable(item.recent_generations))
+        );
+      }
+
+      async function renderProjects() {
+        const [projects, endpoints] = await Promise.all([api("/v1/projects"), api("/v1/inference-endpoints")]);
+        view.replaceChildren(
+          h("div", { class: "page-head" }, h("h2", { text: "Projects" })),
+          endpoints.length
+            ? h("details", {}, h("summary", { text: "New project" }), projectForm(endpoints, null))
+            : h("p", { class: "muted", text: "Create an inference endpoint before adding a project." }),
+          projects.length ? h("div", { class: "table-wrap" }, h("table", {},
+            h("thead", {}, h("tr", {}, ["Name", "Slug", "Endpoint", "Bucket", "Webhook"].map(function (label) {
+              return h("th", { text: label });
+            }))),
+            h("tbody", {}, projects.map(function (project) {
+              return h("tr", {},
+                h("td", {}, h("a", { href: "#/projects/" + project.id, text: project.name })),
+                h("td", { text: project.slug }),
+                h("td", {}, h("a", { href: "#/endpoints/" + project.inference_endpoint_id, text: project.inference_endpoint_name })),
+                h("td", { text: project.s3.bucket_name }),
+                h("td", { text: project.webhook_url || "—" })
+              );
+            }))
+          )) : h("p", { class: "muted", text: "No projects yet." })
+        );
+      }
+
+      async function renderProject(id) {
+        const [project, endpoints] = await Promise.all([
+          api("/v1/projects/" + id),
+          api("/v1/inference-endpoints"),
+        ]);
+        view.replaceChildren(
+          h("div", { class: "page-head" },
+            h("h2", { text: project.name }),
+            h("a", { href: "#/projects", text: "All projects" })
+          ),
+          h("section", { class: "card" },
+            h("h3", { text: "Project" }),
+            h("dl", {},
+              h("dt", { text: "Slug" }), h("dd", { text: project.slug }),
+              h("dt", { text: "Endpoint" }), h("dd", {}, h("a", { href: "#/endpoints/" + project.inference_endpoint_id, text: project.inference_endpoint_name + " (" + project.vast_endpoint_name + ")" })),
+              h("dt", { text: "S3 endpoint" }), h("dd", { text: project.s3.endpoint_url }),
+              h("dt", { text: "Bucket" }), h("dd", { text: project.s3.bucket_name }),
+              h("dt", { text: "Region" }), h("dd", { text: project.s3.region || "—" }),
+              h("dt", { text: "Access key" }), h("dd", { text: project.s3.access_key_id }),
+              h("dt", { text: "Secret key" }), h("dd", { text: project.s3.secret_access_key }),
+              h("dt", { text: "Webhook" }), h("dd", { text: project.webhook_url || "—" }),
+              h("dt", { text: "Webhook secret" }), h("dd", { text: project.webhook_secret_set ? "Set" : "Not set" })
+            )
+          ),
+          h("details", {}, h("summary", { text: "Edit project" }), projectForm(endpoints, project)),
+          h("section", {}, h("h3", { text: "Recent generations" }), generationTable(project.recent_generations))
+        );
+      }
+
+      async function renderGenerations() {
+        const status = new URLSearchParams(location.hash.split("?")[1] || "").get("status") || "";
+        const page = await api("/v1/generations?limit=50" + (status ? "&status=" + encodeURIComponent(status) : ""));
+        const filter = h("select", {},
+          ["", "queued", "running", "completed", "failed"].map(function (value) {
+            const option = h("option", { value: value, text: value || "All statuses" });
+            if (value === status) option.selected = true;
+            return option;
+          })
+        );
+        filter.addEventListener("change", function () {
+          location.hash = filter.value ? "#/generations?status=" + filter.value : "#/generations";
+        });
+        view.replaceChildren(
+          h("div", { class: "page-head" }, h("h2", { text: "Generations" }), filter),
+          generationTable(page.items)
+        );
+      }
+
+      function definitionRows(pairs) {
+        return pairs.flatMap(function (pair) {
+          return [h("dt", { text: pair[0] }), h("dd", { text: pair[1] == null || pair[1] === "" ? "—" : String(pair[1]) })];
+        });
+      }
+
+      async function renderGeneration(id) {
+        const item = await api("/v1/generations/" + id);
+        const outputs = Array.isArray(item.outputs) ? item.outputs : [];
+        view.replaceChildren(
+          h("div", { class: "page-head" },
+            h("h2", { text: shortId(item.id) }),
+            badge(item.status),
+            h("a", { href: "#/generations", text: "All generations" })
+          ),
+          h("section", { class: "card" },
+            h("h3", { text: "Status" }),
+            h("dl", {}, definitionRows([
+              ["ID", item.id],
+              ["Project", item.project_name + " (" + item.project_slug + ")"],
+              ["Endpoint", item.inference_endpoint_name + " (" + item.vast_endpoint_name + ")"],
+              ["Created", formatTime(item.created_at)],
+              ["Queued", formatTime(item.queued_at)],
+              ["Started", formatTime(item.started_at)],
+              ["Completed", formatTime(item.completed_at)],
+              ["Failed", formatTime(item.failed_at)],
+              ["Attempts", item.attempts],
+              ["Forwarded", item.forwarded_status ? item.forwarded_status + " at " + formatTime(item.forwarded_at) : "—"],
+              ["Webhook", item.webhook_url || "—"],
+            ]))
+          ),
+          h("section", { class: "card" },
+            h("h3", { text: "Timings" }),
+            timingBar(item),
+            h("dl", {}, definitionRows([
+              ["Queue", formatDuration(item.queue_ms)],
+              ["Preprocess", formatDuration(item.preprocess_ms)],
+              ["Generation", formatDuration(item.generation_ms)],
+              ["Postprocess", formatDuration(item.postprocess_ms)],
+              ["Total", formatDuration(item.total_ms)],
+              ["Vast latency", formatDuration(item.vast_latency_ms)],
+            ]))
+          ),
+          h("section", { class: "card" },
+            h("h3", { text: "Outputs" }),
+            outputs.length ? h("div", { class: "outputs" }, outputs.map(outputCard)) : h("p", { class: "muted", text: "No outputs yet." })
+          ),
+          h("section", { class: "card" }, h("h3", { text: "Workflow" }), jsonBlock(item.workflow_json)),
+          h("section", { class: "card" }, h("h3", { text: "Sanitized Vast request" }), jsonBlock(item.sanitized_provider_request)),
+          h("section", { class: "card" }, h("h3", { text: "Raw Vast response" }), jsonBlock(item.raw_provider_response)),
+          h("section", { class: "card" }, h("h3", { text: "Webhook payload" }), jsonBlock(item.webhook_payload)),
+          h("section", { class: "card" },
+            h("h3", { text: "Errors" }),
+            item.error_message ? h("p", { class: "error", text: item.error_message }) : h("p", { class: "muted", text: "No error." }),
+            item.error_details ? jsonBlock(item.error_details) : null
+          )
+        );
+      }
+
+      function timingBar(item) {
+        const parts = [
+          ["preprocess", item.preprocess_ms],
+          ["generation", item.generation_ms],
+          ["postprocess", item.postprocess_ms],
+        ].filter(function (part) { return part[1]; });
+        if (!parts.length) return h("p", { class: "muted", text: "Timing breakdown arrives with the result." });
+        return h("div", { class: "bar" }, parts.map(function (part) {
+          return h("span", { class: part[0], style: "flex:" + part[1], text: part[0] });
+        }));
+      }
+
+      function outputCard(output) {
+        const name = output && (output.filename || output.type || "output");
+        const url = output && output.url;
+        return h("div", { class: "output" },
+          h("span", { text: name }),
+          url ? h("a", { href: url, target: "_blank", rel: "noreferrer", text: "Open" }) : h("span", { class: "muted", text: "No URL" })
+        );
+      }
+
+      function highlight(name) {
+        document.querySelectorAll("nav a").forEach(function (link) {
+          link.classList.toggle("active", link.getAttribute("data-nav") === name);
+        });
+      }
+
+      async function render() {
+        const raw = (location.hash || "#/endpoints").replace(/^#\/?/, "");
+        const path = raw.split("?")[0];
+        const parts = path.split("/").filter(Boolean);
+        const section = parts[0] || "endpoints";
+        highlight(section);
+        view.replaceChildren(h("p", { class: "muted", text: "Loading…" }));
+        try {
+          if (section === "endpoints" && parts[1]) await renderEndpoint(parts[1]);
+          else if (section === "endpoints") await renderEndpoints();
+          else if (section === "projects" && parts[1]) await renderProject(parts[1]);
+          else if (section === "projects") await renderProjects();
+          else if (section === "generations" && parts[1]) await renderGeneration(parts[1]);
+          else await renderGenerations();
+        } catch (error) {
+          view.replaceChildren(h("p", { class: "error", text: error.message || String(error) }));
+        }
+      }
+
+      window.addEventListener("hashchange", render);
+      render();
+    </script>
+  </body>
+</html>

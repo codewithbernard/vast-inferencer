@@ -7,9 +7,8 @@ from qstash.errors import SignatureError
 
 from vast_inferencer.logging import log_event
 from vast_inferencer.models import GenerationJob
-from vast_inferencer.registry import ProjectConfigError, UnknownProjectError
+from vast_inferencer.services.generations import run_claimed_generation
 from vast_inferencer.services.qstash import verify_delivery
-from vast_inferencer.services.vast import VastTransportError, run_generation_job
 
 router = APIRouter()
 
@@ -33,45 +32,19 @@ async def consume_generation(request: Request) -> JSONResponse:
         return _non_retryable("Invalid generation job")
 
     try:
-        await run_generation_job(job)
-    except UnknownProjectError:
-        return _non_retryable("Unknown project")
-    except ProjectConfigError as exc:
-        log_event(
-            logging.ERROR,
-            "project_config_missing",
-            request_id=job.request_id,
-            project_id=job.project_id,
-            error_type=exc.env_name,
-        )
-        return _non_retryable("Project is not configured")
-    except VastTransportError as exc:
-        log_event(
-            logging.ERROR,
-            "generation_transport_failed",
-            request_id=job.request_id,
-            project_id=job.project_id,
-            status_code=exc.status_code,
-            error_type=type(exc).__name__,
-        )
-        return JSONResponse(status_code=502, content={"detail": "Generation failed"})
+        outcome = await run_claimed_generation(job.generation_id)
     except Exception as exc:
         log_event(
             logging.ERROR,
             "generation_failed",
-            request_id=job.request_id,
-            project_id=job.project_id,
+            generation_id=str(job.generation_id),
             error_type=type(exc).__name__,
+            route="/internal/generations",
         )
         return JSONResponse(status_code=502, content={"detail": "Generation failed"})
 
-    log_event(
-        logging.INFO,
-        "generation_submitted",
-        request_id=job.request_id,
-        project_id=job.project_id,
-        route="/internal/generations",
-    )
+    if outcome == "missing":
+        return _non_retryable("Unknown generation")
     return JSONResponse(status_code=200, content={"ok": True})
 
 

@@ -1,0 +1,46 @@
+[project]
+name = "vast-inferencer"
+version = "0.1.0"
+description = "Stateless FastAPI service that queues Vast Serverless WAN generations through QStash."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "pydantic-settings>=2.6.0",
+    "qstash>=3.4.0",
+    "vastai>=1.8.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.15.0",
+    "ruff>=0.11.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.vercel]
+entrypoint = "api.index:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "api"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"api/index.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["vast_inferencer"]
+mypy_path = "src"
+disallow_untyped_defs = true
+warn_unused_ignores = true
+ignore_missing_imports = true

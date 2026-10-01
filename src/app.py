@@ -1,6 +1,13 @@
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+SRC = Path(__file__).resolve().parent
+SRC_PATH = str(SRC)
+if SRC_PATH not in sys.path:
+    sys.path.insert(0, SRC_PATH)
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import (

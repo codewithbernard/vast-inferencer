@@ -24,18 +24,18 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.vercel]
-entrypoint = "api.index:app"
+entrypoint = "src.app:app"
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "api"]
+src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
-"api/index.py" = ["E402"]
+"src/app.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.12"

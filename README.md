@@ -21,7 +21,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
-uvicorn vast_inferencer.app:app --reload
+uvicorn app:app --app-dir src --reload
 ```
 
 ## Configuration
@@ -70,7 +70,7 @@ The project webhook receives Vast's terminal payload. For the current ComfyUI wr
 
 ## Deployment
 
-Vercel detects the FastAPI app through `api/index.py` and `[tool.vercel] entrypoint` in `pyproject.toml`. The function `maxDuration` is 800 seconds, which requires a Vercel plan that allows it.
+Vercel loads the FastAPI app from `src/app.py` through `[tool.vercel] entrypoint = "src.app:app"` in `pyproject.toml`. The function `maxDuration` is 800 seconds, which requires a Vercel plan that allows it.
 
 After deployment, confirm `PUBLIC_APP_URL` is the canonical HTTPS origin. QStash signature checks compare the signed URL with `${PUBLIC_APP_URL}/internal/generations`.
 

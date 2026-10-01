@@ -1,4 +1,4 @@
-# Must match functions.api/index.py.maxDuration in vercel.json.
+# Must match functions.src/app.py.maxDuration in vercel.json.
 VERCEL_MAX_DURATION_SECONDS = 800
 
 VAST_WORKER_TIMEOUT_SECONDS = 600.0

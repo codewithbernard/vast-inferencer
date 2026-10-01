@@ -275,6 +275,10 @@
             <select id="projectId"></select>
           </label>
           <label>
+            Endpoint
+            <select id="endpointName"></select>
+          </label>
+          <label>
             Workflow JSON
             <span class="hint">ComfyUI API-format workflow object</span>
             <textarea id="workflowJson" class="tall" spellcheck="false"></textarea>
@@ -304,6 +308,7 @@
       </section>
     </main>
     <script id="project-options" type="application/json">__PROJECT_IDS__</script>
+    <script id="endpoint-options" type="application/json">__ENDPOINT_NAMES__</script>
     <script>
       (function () {
         const sampleWorkflow = {
@@ -315,6 +320,7 @@
 
         const bearerKey = document.getElementById("bearerKey");
         const projectId = document.getElementById("projectId");
+        const endpointName = document.getElementById("endpointName");
         const workflowJson = document.getElementById("workflowJson");
         const webhookExtra = document.getElementById("webhookExtra");
         const sendBtn = document.getElementById("sendBtn");
@@ -325,12 +331,12 @@
         const responseBody = document.getElementById("responseBody");
         const validationError = document.getElementById("validationError");
 
-        function parseProjectIds() {
+        function parseOptions(id) {
           try {
-            const raw = document.getElementById("project-options").textContent.trim();
-            const ids = JSON.parse(raw);
-            if (Array.isArray(ids)) {
-              return ids;
+            const raw = document.getElementById(id).textContent.trim();
+            const values = JSON.parse(raw);
+            if (Array.isArray(values)) {
+              return values;
             }
           } catch (_) {
             /* ignore */
@@ -338,22 +344,26 @@
           return [];
         }
 
-        function initProjectSelect() {
-          const ids = parseProjectIds();
-          projectId.replaceChildren();
-          if (ids.length === 0) {
+        function fillSelect(select, values, emptyLabel) {
+          select.replaceChildren();
+          if (values.length === 0) {
             const empty = document.createElement("option");
             empty.value = "";
-            empty.textContent = "No projects yet";
-            projectId.appendChild(empty);
+            empty.textContent = emptyLabel;
+            select.appendChild(empty);
             return;
           }
-          for (const id of ids) {
+          for (const value of values) {
             const opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = id;
-            projectId.appendChild(opt);
+            opt.value = value;
+            opt.textContent = value;
+            select.appendChild(opt);
           }
+        }
+
+        function initSelects() {
+          fillSelect(projectId, parseOptions("project-options"), "No projects yet");
+          fillSelect(endpointName, parseOptions("endpoint-options"), "No endpoints yet");
         }
 
         function setValidation(message) {
@@ -417,6 +427,10 @@
             setValidation("Create a project in Admin first.");
             return;
           }
+          if (!endpointName.value) {
+            setValidation("Create an inference endpoint in Admin first.");
+            return;
+          }
 
           let workflow;
           let webhook_extra_params;
@@ -433,6 +447,7 @@
 
           const payload = {
             project_id: projectId.value,
+            vast_endpoint_name: endpointName.value,
             workflow_json: workflow,
             webhook_extra_params,
           };
@@ -496,7 +511,7 @@
           }
         }
 
-        initProjectSelect();
+        initSelects();
         resetSample();
         formatBtn.addEventListener("click", formatEditors);
         resetBtn.addEventListener("click", resetSample);

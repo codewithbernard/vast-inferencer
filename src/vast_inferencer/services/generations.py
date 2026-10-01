@@ -83,6 +83,7 @@ async def create_generation(
     *,
     project_id: UUID | None,
     slug: str | None,
+    vast_endpoint_name: str,
     workflow_json: dict[str, Any],
     webhook_extra_params: dict[str, Any],
     webhook_url: str | None,
@@ -90,7 +91,11 @@ async def create_generation(
     now = _now()
     async with session_scope() as session:
         project = await _load_project(session, project_id=project_id, slug=slug)
-        endpoint = await session.get(InferenceEndpoint, project.inference_endpoint_id)
+        endpoint = await session.scalar(
+            select(InferenceEndpoint).where(
+                InferenceEndpoint.vast_endpoint_name == vast_endpoint_name
+            )
+        )
         if endpoint is None:
             raise NotFoundError("Inference endpoint not found")
         if not endpoint.enabled:

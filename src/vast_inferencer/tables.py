@@ -39,11 +39,6 @@ class Project(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(128), unique=True)
-    inference_endpoint_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("inference_endpoints.id"),
-        index=True,
-    )
     s3_endpoint_url: Mapped[str] = mapped_column(String(500))
     s3_bucket_name: Mapped[str] = mapped_column(String(200))
     s3_region: Mapped[str] = mapped_column(String(64), default="", server_default="")

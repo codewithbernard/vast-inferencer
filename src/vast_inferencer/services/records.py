@@ -2,7 +2,7 @@ import secrets
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,8 +31,7 @@ async def list_endpoints() -> list[InferenceEndpointOut]:
                 select(InferenceEndpoint).order_by(InferenceEndpoint.created_at.desc())
             )
         )
-        counts = await _project_counts(session)
-        return [endpoint_out(endpoint, counts.get(endpoint.id, 0)) for endpoint in endpoints]
+        return [endpoint_out(endpoint) for endpoint in endpoints]
 
 
 async def create_endpoint(body: InferenceEndpointCreate) -> InferenceEndpointOut:
@@ -49,7 +48,7 @@ async def create_endpoint(body: InferenceEndpointCreate) -> InferenceEndpointOut
         )
         session.add(endpoint)
         await _flush_unique(session, "An inference endpoint with that Vast name already exists")
-        return endpoint_out(endpoint, 0)
+        return endpoint_out(endpoint)
 
 
 async def get_endpoint(endpoint_id: UUID) -> InferenceEndpointDetail:
@@ -57,18 +56,9 @@ async def get_endpoint(endpoint_id: UUID) -> InferenceEndpointDetail:
         endpoint = await session.get(InferenceEndpoint, endpoint_id)
         if endpoint is None:
             raise NotFoundError("Inference endpoint not found")
-        projects = list(
-            await session.scalars(
-                select(Project)
-                .where(Project.inference_endpoint_id == endpoint.id)
-                .order_by(Project.created_at.desc())
-            )
-        )
         page = await list_generations(session, endpoint_id=endpoint.id, limit=20)
-        count = len(projects)
         return InferenceEndpointDetail(
-            **endpoint_out(endpoint, count).model_dump(),
-            projects=[project_out(project, endpoint) for project in projects],
+            **endpoint_out(endpoint).model_dump(),
             recent_generations=page.items,
         )
 
@@ -91,39 +81,24 @@ async def update_endpoint(
             endpoint.enabled = body.enabled
         endpoint.updated_at = datetime.now(UTC)
         await _flush_unique(session, "An inference endpoint with that Vast name already exists")
-        count = await session.scalar(
-            select(func.count())
-            .select_from(Project)
-            .where(Project.inference_endpoint_id == endpoint.id)
-        )
-        return endpoint_out(endpoint, int(count or 0))
+        return endpoint_out(endpoint)
 
 
 async def list_projects() -> list[ProjectOut]:
     async with session_scope() as session:
-        rows = (
-            await session.execute(
-                select(Project, InferenceEndpoint)
-                .join(InferenceEndpoint, InferenceEndpoint.id == Project.inference_endpoint_id)
-                .order_by(Project.created_at.desc())
-            )
-        ).all()
-        return [project_out(project, endpoint) for project, endpoint in rows]
+        projects = list(await session.scalars(select(Project).order_by(Project.created_at.desc())))
+        return [project_out(project) for project in projects]
 
 
 async def create_project(body: ProjectCreate) -> ProjectOut:
     now = datetime.now(UTC)
     webhook_secret = _secret_or_generated(body.webhook_secret)
     async with session_scope() as session:
-        endpoint = await session.get(InferenceEndpoint, body.inference_endpoint_id)
-        if endpoint is None:
-            raise NotFoundError("Inference endpoint not found")
         await _ensure_slug_available(session, body.slug, None)
         project = Project(
             id=uuid4(),
             name=body.name,
             slug=body.slug,
-            inference_endpoint_id=endpoint.id,
             s3_endpoint_url=body.s3.endpoint_url,
             s3_bucket_name=body.s3.bucket_name,
             s3_region=body.s3.region,
@@ -138,24 +113,17 @@ async def create_project(body: ProjectCreate) -> ProjectOut:
         )
         session.add(project)
         await _flush_unique(session, "A project with that slug already exists")
-        return project_out(project, endpoint)
+        return project_out(project)
 
 
 async def get_project(project_id: UUID) -> ProjectDetail:
     async with session_scope() as session:
-        row = (
-            await session.execute(
-                select(Project, InferenceEndpoint)
-                .join(InferenceEndpoint, InferenceEndpoint.id == Project.inference_endpoint_id)
-                .where(Project.id == project_id)
-            )
-        ).first()
-        if row is None:
+        project = await session.get(Project, project_id)
+        if project is None:
             raise NotFoundError("Project not found")
-        project, endpoint = row
         page = await list_generations(session, project_id=project.id, limit=20)
         return ProjectDetail(
-            **project_out(project, endpoint).model_dump(),
+            **project_out(project).model_dump(),
             recent_generations=page.items,
         )
 
@@ -166,15 +134,6 @@ async def update_project(project_id: UUID, body: ProjectUpdate) -> ProjectOut:
         if project is None:
             raise NotFoundError("Project not found")
         fields = body.model_fields_set
-        if "inference_endpoint_id" in fields and body.inference_endpoint_id is not None:
-            endpoint = await session.get(InferenceEndpoint, body.inference_endpoint_id)
-            if endpoint is None:
-                raise NotFoundError("Inference endpoint not found")
-            project.inference_endpoint_id = endpoint.id
-        else:
-            endpoint = await session.get(InferenceEndpoint, project.inference_endpoint_id)
-            if endpoint is None:
-                raise NotFoundError("Inference endpoint not found")
         if "name" in fields and body.name is not None:
             project.name = body.name
         if "slug" in fields and body.slug is not None:
@@ -201,7 +160,7 @@ async def update_project(project_id: UUID, body: ProjectUpdate) -> ProjectOut:
             project.webhook_secret_enc = encrypt_secret(secret)
         project.updated_at = datetime.now(UTC)
         await _flush_unique(session, "A project with that slug already exists")
-        return project_out(project, endpoint)
+        return project_out(project)
 
 
 async def list_project_slugs() -> list[str]:
@@ -210,15 +169,14 @@ async def list_project_slugs() -> list[str]:
         return list(rows)
 
 
-async def _project_counts(session: AsyncSession) -> dict[UUID, int]:
-    rows = (
-        await session.execute(
-            select(Project.inference_endpoint_id, func.count()).group_by(
-                Project.inference_endpoint_id
-            )
+async def list_endpoint_names() -> list[str]:
+    async with session_scope() as session:
+        rows = await session.scalars(
+            select(InferenceEndpoint.vast_endpoint_name)
+            .where(InferenceEndpoint.enabled.is_(True))
+            .order_by(InferenceEndpoint.vast_endpoint_name)
         )
-    ).all()
-    return {endpoint_id: int(count) for endpoint_id, count in rows}
+        return list(rows)
 
 
 async def _ensure_endpoint_name_available(

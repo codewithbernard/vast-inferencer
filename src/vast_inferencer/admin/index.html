@@ -323,19 +323,11 @@
         return form;
       }
 
-      function projectForm(endpoints, current) {
-        const endpointSelect = h("select", { name: "inference_endpoint_id" },
-          endpoints.map(function (endpoint) {
-            const option = h("option", { value: endpoint.id, text: endpoint.name + " (" + endpoint.vast_endpoint_name + ")" });
-            if (current && current.inference_endpoint_id === endpoint.id) option.selected = true;
-            return option;
-          })
-        );
+      function projectForm(current) {
         const form = h("form", {},
           h("div", { class: "grid" },
             field("Name", input("text", "name", current && current.name)),
             field("Slug", input("text", "slug", current && current.slug, "ai-ofm-studio")),
-            field("Inference endpoint", endpointSelect),
             field("S3 endpoint URL", input("text", "s3_endpoint_url", current && current.s3.endpoint_url)),
             field("Bucket", input("text", "s3_bucket_name", current && current.s3.bucket_name)),
             field("Region", input("text", "s3_region", current && current.s3.region)),
@@ -357,7 +349,6 @@
             body = {
               name: String(data.get("name") || "").trim(),
               slug: String(data.get("slug") || "").trim(),
-              inference_endpoint_id: String(data.get("inference_endpoint_id") || ""),
               s3_endpoint_url: String(data.get("s3_endpoint_url") || "").trim(),
               s3_bucket_name: String(data.get("s3_bucket_name") || "").trim(),
               s3_region: String(data.get("s3_region") || "").trim(),
@@ -370,7 +361,6 @@
             body = {
               name: String(data.get("name") || "").trim(),
               slug: String(data.get("slug") || "").trim(),
-              inference_endpoint_id: String(data.get("inference_endpoint_id") || ""),
               s3: {
                 endpoint_url: String(data.get("s3_endpoint_url") || "").trim(),
                 bucket_name: String(data.get("s3_bucket_name") || "").trim(),
@@ -401,7 +391,7 @@
           h("div", { class: "page-head" }, h("h2", { text: "Inference endpoints" })),
           h("details", {}, h("summary", { text: "New endpoint" }), endpointForm(null)),
           items.length ? h("div", { class: "table-wrap" }, h("table", {},
-            h("thead", {}, h("tr", {}, ["Name", "Vast name", "State", "Projects", "Created"].map(function (label) {
+            h("thead", {}, h("tr", {}, ["Name", "Vast name", "State", "Created"].map(function (label) {
               return h("th", { text: label });
             }))),
             h("tbody", {}, items.map(function (item) {
@@ -412,7 +402,6 @@
                   class: "badge " + (item.enabled ? "completed" : "off"),
                   text: item.enabled ? "enabled" : "disabled",
                 })),
-                h("td", { text: String(item.project_count) }),
                 h("td", { text: formatTime(item.created_at) })
               );
             }))
@@ -436,39 +425,23 @@
             )
           ),
           h("details", { open: "open" }, h("summary", { text: "Edit endpoint" }), endpointForm(item)),
-          h("section", { class: "card" },
-            h("h3", { text: "Projects" }),
-            item.projects.length ? h("div", { class: "table-wrap" }, h("table", {},
-              h("thead", {}, h("tr", {}, ["Name", "Slug", "Webhook"].map(function (label) { return h("th", { text: label }); }))),
-              h("tbody", {}, item.projects.map(function (project) {
-                return h("tr", {},
-                  h("td", {}, h("a", { href: "#/projects/" + project.id, text: project.name })),
-                  h("td", { text: project.slug }),
-                  h("td", { text: project.webhook_url || "—" })
-                );
-              }))
-            )) : h("p", { class: "muted", text: "No projects use this endpoint." })
-          ),
           h("section", {}, h("h3", { text: "Recent generations" }), generationTable(item.recent_generations))
         );
       }
 
       async function renderProjects() {
-        const [projects, endpoints] = await Promise.all([api("/v1/projects"), api("/v1/inference-endpoints")]);
+        const projects = await api("/v1/projects");
         view.replaceChildren(
           h("div", { class: "page-head" }, h("h2", { text: "Projects" })),
-          endpoints.length
-            ? h("details", {}, h("summary", { text: "New project" }), projectForm(endpoints, null))
-            : h("p", { class: "muted", text: "Create an inference endpoint before adding a project." }),
+          h("details", {}, h("summary", { text: "New project" }), projectForm(null)),
           projects.length ? h("div", { class: "table-wrap" }, h("table", {},
-            h("thead", {}, h("tr", {}, ["Name", "Slug", "Endpoint", "Bucket", "Webhook"].map(function (label) {
+            h("thead", {}, h("tr", {}, ["Name", "Slug", "Bucket", "Webhook"].map(function (label) {
               return h("th", { text: label });
             }))),
             h("tbody", {}, projects.map(function (project) {
               return h("tr", {},
                 h("td", {}, h("a", { href: "#/projects/" + project.id, text: project.name })),
                 h("td", { text: project.slug }),
-                h("td", {}, h("a", { href: "#/endpoints/" + project.inference_endpoint_id, text: project.inference_endpoint_name })),
                 h("td", { text: project.s3.bucket_name }),
                 h("td", { text: project.webhook_url || "—" })
               );
@@ -478,10 +451,7 @@
       }
 
       async function renderProject(id) {
-        const [project, endpoints] = await Promise.all([
-          api("/v1/projects/" + id),
-          api("/v1/inference-endpoints"),
-        ]);
+        const project = await api("/v1/projects/" + id);
         view.replaceChildren(
           h("div", { class: "page-head" },
             h("h2", { text: project.name }),
@@ -491,7 +461,6 @@
             h("h3", { text: "Project" }),
             h("dl", {},
               h("dt", { text: "Slug" }), h("dd", { text: project.slug }),
-              h("dt", { text: "Endpoint" }), h("dd", {}, h("a", { href: "#/endpoints/" + project.inference_endpoint_id, text: project.inference_endpoint_name + " (" + project.vast_endpoint_name + ")" })),
               h("dt", { text: "S3 endpoint" }), h("dd", { text: project.s3.endpoint_url }),
               h("dt", { text: "Bucket" }), h("dd", { text: project.s3.bucket_name }),
               h("dt", { text: "Region" }), h("dd", { text: project.s3.region || "—" }),
@@ -501,7 +470,7 @@
               h("dt", { text: "Webhook secret" }), h("dd", { text: project.webhook_secret_set ? "Set" : "Not set" })
             )
           ),
-          h("details", {}, h("summary", { text: "Edit project" }), projectForm(endpoints, project)),
+          h("details", {}, h("summary", { text: "Edit project" }), projectForm(project)),
           h("section", {}, h("h3", { text: "Recent generations" }), generationTable(project.recent_generations))
         );
       }

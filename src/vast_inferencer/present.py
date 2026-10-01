@@ -9,26 +9,22 @@ from vast_inferencer.models import (
 from vast_inferencer.tables import Generation, InferenceEndpoint, Project
 
 
-def endpoint_out(endpoint: InferenceEndpoint, project_count: int = 0) -> InferenceEndpointOut:
+def endpoint_out(endpoint: InferenceEndpoint) -> InferenceEndpointOut:
     return InferenceEndpointOut(
         id=endpoint.id,
         name=endpoint.name,
         vast_endpoint_name=endpoint.vast_endpoint_name,
         enabled=endpoint.enabled,
-        project_count=project_count,
         created_at=endpoint.created_at,
         updated_at=endpoint.updated_at,
     )
 
 
-def project_out(project: Project, endpoint: InferenceEndpoint) -> ProjectOut:
+def project_out(project: Project) -> ProjectOut:
     return ProjectOut(
         id=project.id,
         name=project.name,
         slug=project.slug,
-        inference_endpoint_id=project.inference_endpoint_id,
-        inference_endpoint_name=endpoint.name,
-        vast_endpoint_name=endpoint.vast_endpoint_name,
         s3=SanitizedS3(
             endpoint_url=project.s3_endpoint_url,
             bucket_name=project.s3_bucket_name,

@@ -54,7 +54,6 @@ class InferenceEndpointOut(BaseModel):
     name: str
     vast_endpoint_name: str
     enabled: bool
-    project_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -95,7 +94,6 @@ class ProjectCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     slug: str = Field(min_length=1, max_length=128)
-    inference_endpoint_id: UUID
     s3: S3Input
     webhook_url: AnyHttpUrl | None = None
     webhook_secret: SecretStr | None = None
@@ -121,7 +119,6 @@ class ProjectUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     slug: str | None = Field(default=None, min_length=1, max_length=128)
-    inference_endpoint_id: UUID | None = None
     s3_endpoint_url: str | None = Field(default=None, min_length=1, max_length=500)
     s3_bucket_name: str | None = Field(default=None, min_length=1, max_length=200)
     s3_region: str | None = Field(default=None, max_length=64)
@@ -160,9 +157,6 @@ class ProjectOut(BaseModel):
     id: UUID
     name: str
     slug: str
-    inference_endpoint_id: UUID
-    inference_endpoint_name: str
-    vast_endpoint_name: str
     s3: SanitizedS3
     webhook_url: str | None
     webhook_secret_set: bool
@@ -175,16 +169,24 @@ class ProjectDetail(ProjectOut):
 
 
 class InferenceEndpointDetail(InferenceEndpointOut):
-    projects: list[ProjectOut]
     recent_generations: list["GenerationListItem"]
 
 
 class GenerationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    vast_endpoint_name: str = Field(min_length=1, max_length=200)
     workflow_json: dict[str, Any] = Field(min_length=1)
     webhook_extra_params: dict[str, Any] = Field(default_factory=dict)
     webhook_url: AnyHttpUrl | None = None
+
+    @field_validator("vast_endpoint_name")
+    @classmethod
+    def strip_endpoint_name(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("must not be blank")
+        return text
 
     @field_validator("workflow_json", "webhook_extra_params")
     @classmethod

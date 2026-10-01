@@ -66,7 +66,7 @@ Changing `SECRETS_ENCRYPTION_KEY` makes existing project secrets unreadable. Cre
 
 ## Seed the existing project
 
-Create an inference endpoint, then a project. The storage password that used to live in `AI_OFM_STUDIO_STORAGE_PASSWORD` is now the project S3 secret. The old environment variable is not read.
+Create an inference endpoint and a project. The storage password that used to live in `AI_OFM_STUDIO_STORAGE_PASSWORD` is now the project S3 secret. The old environment variable is not read.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/inference-endpoints \
@@ -82,7 +82,6 @@ curl -X POST http://127.0.0.1:8000/v1/projects \
   -d '{
     "name": "AI OFM Studio",
     "slug": "ai-ofm-studio",
-    "inference_endpoint_id": "<endpoint uuid>",
     "s3": {
       "access_key_id": "ai-ofm-studio",
       "secret_access_key": "<bunny storage password>",
@@ -95,7 +94,7 @@ curl -X POST http://127.0.0.1:8000/v1/projects \
   }'
 ```
 
-Several projects can share one Vast endpoint and still use different buckets and webhooks. A generation stores the endpoint ID it actually used, so later endpoint changes do not rewrite history.
+A project stores S3 and webhook settings. Each generation request chooses its Vast endpoint by `vast_endpoint_name` and stores the endpoint ID it actually used, so later endpoint changes do not rewrite history.
 
 If you omit `webhook_secret`, one is generated and stored encrypted. Set it yourself when the downstream receiver verifies `X-Webhook-Signature`.
 
@@ -121,7 +120,7 @@ GET    /v1/generations/{generation_id}
 POST   /v1/generations
 ```
 
-`POST /v1/generations` is the previous caller shape: `project_id` is the project slug.
+`POST /v1/generations` is the previous caller shape: `project_id` is the project slug. Both generation POST routes require `vast_endpoint_name`.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/generations \
@@ -129,6 +128,7 @@ curl -X POST http://127.0.0.1:8000/v1/generations \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": "ai-ofm-studio",
+    "vast_endpoint_name": "minimax-h3",
     "workflow_json": {"90": {"class_type": "CLIPLoader", "inputs": {"clip_name": "umt5"}}},
     "webhook_extra_params": {"user_id": "12345"},
     "webhook_url": "https://example.com/hooks/this-request"

@@ -94,6 +94,7 @@ async def _accept(
         generation = await create_generation(
             project_id=project_id,
             slug=slug,
+            vast_endpoint_name=body.vast_endpoint_name,
             workflow_json=body.workflow_json,
             webhook_extra_params=body.webhook_extra_params,
             webhook_url=None if body.webhook_url is None else str(body.webhook_url),

@@ -15,7 +15,6 @@ from vast_inferencer.services.projects import get_project
 
 GENERATE_SYNC_ROUTE = "/generate/sync"
 
-
 class VastTransportError(Exception):
     def __init__(self, status_code: int | None = None) -> None:
         self.status_code = status_code

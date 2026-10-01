@@ -62,7 +62,7 @@ class ProjectSpec:
 PROJECTS: dict[str, ProjectSpec] = {
     "ai-ofm-studio": ProjectSpec(
         project_id="ai-ofm-studio",
-        endpoint_name="comfyui-json",
+        endpoint_name="minimax-h3",
         s3_endpoint_url="https://de-s3.storage.bunnycdn.com",
         s3_bucket_name="ai-ofm-studio",
         s3_region="de",

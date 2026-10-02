@@ -281,9 +281,7 @@ async def apply_vast_result(
     generation = await _lock(session, generation_id)
     if generation is None:
         return
-    cleaned = redact(result)
-    if isinstance(cleaned, dict):
-        generation.raw_provider_response = cleaned
+    generation.raw_provider_response = result
     terminal, body = _interpret_vast(result)
     _assign_outputs(generation, body.get("output"), overwrite=True)
     _fill_timings(generation, body.get("timings"))
@@ -400,9 +398,7 @@ async def _apply_webhook(
     status = payload.get("status") if isinstance(payload.get("status"), str) else ""
     incoming_terminal = status == "completed" or status in _WRAPPER_FAILURES
     if incoming_terminal or not _stored_webhook_is_terminal(generation.webhook_payload):
-        cleaned = redact(payload)
-        if isinstance(cleaned, dict):
-            generation.webhook_payload = cleaned
+        generation.webhook_payload = payload
     if not incoming_terminal:
         generation.updated_at = _now()
         return
@@ -479,9 +475,6 @@ def _forward_body(generation: Generation, project: Project) -> dict[str, Any]:
         },
         "extra": extra,
     }
-    cleaned = redact(body)
-    if isinstance(cleaned, dict):
-        return cleaned
     return body
 
 
@@ -519,17 +512,14 @@ def _finish(
         "http_status": http_status if isinstance(http_status, int) else None,
         "message": message,
     }
-    cleaned = redact(details)
-    _fail(generation, message, cleaned if isinstance(cleaned, dict) else details)
+    _fail(generation, message, details)
 
 
 def _fail(generation: Generation, message: str, details: dict[str, Any]) -> None:
     generation.status = "failed"
     generation.failed_at = generation.failed_at or _now()
     generation.updated_at = generation.failed_at
-    redacted = redact(message)
-    text_message = redacted if isinstance(redacted, str) else message
-    generation.error_message = text_message[:2000]
+    generation.error_message = message[:2000]
     generation.error_details = details
 
 
@@ -538,9 +528,7 @@ def _assign_outputs(generation: Generation, outputs: object, *, overwrite: bool)
         return
     if generation.outputs and not overwrite:
         return
-    cleaned = redact(outputs)
-    if isinstance(cleaned, list):
-        generation.outputs = cleaned
+    generation.outputs = outputs
 
 
 def _fill_timings(generation: Generation, timings: object) -> None:

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from vast_inferencer.models import (
     GenerationDetail,
     GenerationListItem,
@@ -52,6 +54,7 @@ def generation_item(
         inference_endpoint_name=endpoint.name,
         vast_endpoint_name=endpoint.vast_endpoint_name,
         created_at=generation.created_at,
+        finished_at=finished_at(generation),
         queue_ms=queue_duration_ms(generation),
         generation_ms=generation.generation_ms,
         total_ms=total_duration_ms(generation),
@@ -73,6 +76,7 @@ def generation_detail(
         inference_endpoint_name=endpoint.name,
         vast_endpoint_name=endpoint.vast_endpoint_name,
         created_at=generation.created_at,
+        finished_at=finished_at(generation),
         queued_at=generation.queued_at,
         started_at=generation.started_at,
         completed_at=generation.completed_at,
@@ -105,10 +109,14 @@ def queue_duration_ms(generation: Generation) -> int | None:
     return max(0, int((generation.started_at - generation.queued_at).total_seconds() * 1000))
 
 
+def finished_at(generation: Generation) -> datetime | None:
+    return generation.completed_at or generation.failed_at
+
+
 def total_duration_ms(generation: Generation) -> int | None:
     if generation.total_ms is not None:
         return generation.total_ms
-    finished = generation.completed_at or generation.failed_at
+    finished = finished_at(generation)
     if finished is None or generation.created_at is None:
         return None
     return max(0, int((finished - generation.created_at).total_seconds() * 1000))

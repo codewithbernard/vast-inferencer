@@ -270,7 +270,7 @@
         if (!items || !items.length) return h("p", { class: "muted", text: "No generations yet." });
         return h("div", { class: "table-wrap" }, h("table", {},
           h("thead", {}, h("tr", {},
-            ["ID", "Status", "Project", "Endpoint", "Created", "Finished", "Queue", "Generation", "Total"].map(function (label) {
+            ["ID", "Status", "Project", "Endpoint", "Created", "Queued", "Started", "Finished", "Completed", "Queue", "Generation", "Total"].map(function (label) {
               return h("th", { text: label });
             })
           )),
@@ -281,7 +281,10 @@
               h("td", {}, h("a", { href: "#/projects/" + item.project_id, text: item.project_name })),
               h("td", {}, h("a", { href: "#/endpoints/" + item.inference_endpoint_id, text: item.inference_endpoint_name })),
               h("td", { text: formatTime(item.created_at) }),
+              h("td", { text: formatTime(item.queued_at) }),
+              h("td", { text: formatTime(item.started_at) }),
               h("td", { text: formatTime(item.finished_at) }),
+              h("td", { text: formatTime(item.completed_at) }),
               h("td", { text: formatDuration(item.queue_ms) }),
               h("td", { text: formatDuration(item.generation_ms) }),
               h("td", { text: formatDuration(item.total_ms) })
@@ -517,9 +520,9 @@
               ["Project", item.project_name + " (" + item.project_slug + ")"],
               ["Endpoint", item.inference_endpoint_name + " (" + item.vast_endpoint_name + ")"],
               ["Created", formatTime(item.created_at)],
-              ["Finished", formatTime(item.finished_at)],
               ["Queued", formatTime(item.queued_at)],
               ["Started", formatTime(item.started_at)],
+              ["Finished", formatTime(item.finished_at)],
               ["Completed", formatTime(item.completed_at)],
               ["Failed", formatTime(item.failed_at)],
               ["Attempts", item.attempts],

@@ -96,8 +96,6 @@ def generation_detail(
         webhook_payload=generation.webhook_payload,
         error_message=generation.error_message,
         error_details=generation.error_details,
-        forwarded_status=generation.forwarded_status,
-        forwarded_at=generation.forwarded_at,
     )
 
 

@@ -13,9 +13,9 @@ The public API returns as soon as the job is durable. [Upstash QStash](https://u
 5. The worker calls that generation's Vast endpoint at `/generate/sync`, with S3 and webhook settings copied from the project.
 6. Vast uploads the file to the project bucket and POSTs the wrapper result to `/webhooks/comfyui`.
 7. Whichever completion signal arrives first updates the generation. The other one fills in anything still empty.
-8. If the project or the request has a webhook URL, this service forwards one signed callback through QStash.
+8. If the generation or the project has a webhook URL, this service POSTs the Vast webhook body and `X-Webhook-Signature` to that URL.
 
-S3 credentials, the Vast API key, the QStash token, and webhook secrets are never accepted on the public generation route. They are loaded from the project row. Stored requests and API responses redact them.
+S3 credentials, the Vast API key, the QStash token, and webhook secrets are never accepted on the public generation route. They are loaded from the project row. The stored provider request redacts those values. Generation outputs and the stored webhook payload are kept as Vast sent them.
 
 ## Local setup
 
@@ -152,7 +152,7 @@ Project responses show S3 keys as `[REDACTED]` and `webhook_secret_set`. They ne
 
 Vast is given this service's `/webhooks/comfyui` URL and the project webhook secret. The wrapper signs the raw body with HMAC-SHA256 and sends `X-Webhook-Signature: sha256=<hex>`.
 
-After the generation reaches `completed` or `failed`, this service forwards a summary to the generation webhook URL, or the project webhook URL when the request did not set one. The forward goes through QStash, uses the same signature header, and is signed with the project webhook secret. A second forward is sent only when the first one had no outputs and a later signal adds them.
+When that webhook arrives, this service stores it, then POSTs the same body and `X-Webhook-Signature` to the generation webhook URL, or the project webhook URL when the request did not set one. A failed forward is logged and not retried.
 
 The wrapper payload and the `/generate/sync` result can both arrive. That is expected. A completed generation is not moved back to failed.
 

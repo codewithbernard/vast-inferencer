@@ -521,7 +521,6 @@
               ["Completed", formatTime(item.completed_at)],
               ["Failed", formatTime(item.failed_at)],
               ["Attempts", item.attempts],
-              ["Forwarded", item.forwarded_status ? item.forwarded_status + " at " + formatTime(item.forwarded_at) : "—"],
               ["Webhook", item.webhook_url || "—"],
             ]))
           ),

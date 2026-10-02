@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+import httpx
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,7 @@ from vast_inferencer.present import (
     total_duration_ms,
 )
 from vast_inferencer.sanitize import redact
-from vast_inferencer.services.qstash import PublishError, publish_forward, publish_generation
+from vast_inferencer.services.qstash import PublishError, publish_generation
 from vast_inferencer.services.vast import VastTransportError, build_vast_payload, call_generate_sync
 from vast_inferencer.tables import Generation, InferenceEndpoint, Project
 
@@ -112,7 +113,6 @@ async def create_generation(
             webhook_extra_params=webhook_extra_params,
             webhook_url_override=webhook_url,
             attempts=0,
-            forwarded_with_outputs=False,
         )
         session.add(generation)
         await session.flush()
@@ -124,7 +124,6 @@ async def create_generation(
     except PublishError:
         async with session_scope() as session:
             await _mark_publish_failed(session, generation_id)
-        await safe_forward(generation_id)
         raise PublishFailedError from None
 
     try:
@@ -202,7 +201,6 @@ async def run_claimed_generation(generation_id: UUID) -> str:
     if prepared.action == "skipped":
         return "skipped"
     if prepared.action == "stale_failed" or prepared.action == "config_failed":
-        await safe_forward(generation_id)
         return "failed"
     context = prepared.context
     if context is None:
@@ -220,7 +218,6 @@ async def run_claimed_generation(generation_id: UUID) -> str:
         )
         async with session_scope() as session:
             await apply_worker_failure(session, generation_id, exc)
-        await safe_forward(generation_id)
         return "failed"
     try:
         async with session_scope() as session:
@@ -234,7 +231,6 @@ async def run_claimed_generation(generation_id: UUID) -> str:
         )
         async with session_scope() as session:
             await apply_worker_failure(session, generation_id, exc)
-    await safe_forward(generation_id)
     return "done"
 
 
@@ -343,12 +339,24 @@ async def record_webhook(raw: bytes, signature: str | None) -> None:
         if project.id != project_id:
             raise WebhookError(400, "Project mismatch")
         await _apply_webhook(session, generation, parsed)
-    await safe_forward(generation_id)
+        destination = generation.webhook_url_override or project.webhook_url
+    if destination:
+        await _forward_webhook(destination, raw, signature, generation_id)
 
 
-async def safe_forward(generation_id: UUID) -> None:
+async def _forward_webhook(
+    destination: str,
+    raw: bytes,
+    signature: str | None,
+    generation_id: UUID,
+) -> None:
+    headers = {"Content-Type": "application/json"}
+    if signature:
+        headers["X-Webhook-Signature"] = signature
     try:
-        await schedule_forward(generation_id)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(destination, content=raw, headers=headers)
+            response.raise_for_status()
     except Exception as exc:
         log_event(
             logging.ERROR,
@@ -356,38 +364,6 @@ async def safe_forward(generation_id: UUID) -> None:
             generation_id=str(generation_id),
             error_type=type(exc).__name__,
         )
-
-
-async def schedule_forward(generation_id: UUID) -> None:
-    async with session_scope() as session:
-        generation = await _lock(session, generation_id)
-        if generation is None or generation.status not in _TERMINAL:
-            return
-        project = await session.get(Project, generation.project_id)
-        if project is None:
-            return
-        destination = generation.webhook_url_override or project.webhook_url
-        if not destination:
-            return
-        with_outputs = bool(generation.outputs)
-        already_sent = generation.forwarded_status == generation.status
-        if already_sent and (generation.forwarded_with_outputs or not with_outputs):
-            return
-        secret = decrypt_secret(project.webhook_secret_enc)
-        encoded = json.dumps(_forward_body(generation, project))
-        digest = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
-        signature = "sha256=" + digest
-        suffix = "outputs" if with_outputs else "status"
-        publish_forward(
-            url=destination,
-            body=encoded,
-            signature=signature,
-            deduplication_id=f"{generation.id}-{generation.status}-{suffix}",
-        )
-        generation.forwarded_status = generation.status
-        generation.forwarded_with_outputs = with_outputs
-        generation.forwarded_at = _now()
-        generation.updated_at = generation.forwarded_at
 
 
 async def _apply_webhook(
@@ -451,31 +427,6 @@ async def _mark_publish_failed(session: AsyncSession, generation_id: UUID) -> No
     previous = generation.status
     _fail(generation, "publish_failed", {"error_type": "PublishError"})
     await _log_generation(session, generation, previous, "api")
-
-
-def _forward_body(generation: Generation, project: Project) -> dict[str, Any]:
-    extra = dict(generation.webhook_extra_params)
-    extra["project_id"] = str(project.id)
-    extra["generation_id"] = str(generation.id)
-    extra["project_slug"] = project.slug
-    if generation.status == "completed":
-        message = "Processing complete."
-    else:
-        message = generation.error_message or "Generation failed"
-    body = {
-        "id": str(generation.id),
-        "status": generation.status,
-        "message": message,
-        "output": generation.outputs or [],
-        "timings": {
-            "preprocess_ms": generation.preprocess_ms,
-            "generation_ms": generation.generation_ms,
-            "postprocess_ms": generation.postprocess_ms,
-            "total_ms": total_duration_ms(generation),
-        },
-        "extra": extra,
-    }
-    return body
 
 
 def _interpret_vast(

@@ -262,5 +262,3 @@ class GenerationDetail(BaseModel):
     webhook_payload: dict[str, Any] | None
     error_message: str | None
     error_details: dict[str, Any] | None
-    forwarded_status: str | None
-    forwarded_at: datetime | None

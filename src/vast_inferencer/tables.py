@@ -91,10 +91,3 @@ class Generation(Base):
     postprocess_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     vast_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    forwarded_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    forwarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    forwarded_with_outputs: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        server_default=text("false"),
-    )

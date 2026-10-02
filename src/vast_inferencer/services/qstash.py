@@ -7,12 +7,6 @@ from qstash.errors import SignatureError
 
 from vast_inferencer.config import get_settings
 from vast_inferencer.limits import (
-    QSTASH_FLOW_CONTROL_KEY,
-    QSTASH_FLOW_CONTROL_PARALLELISM,
-    QSTASH_FORWARD_FLOW_CONTROL_KEY,
-    QSTASH_FORWARD_FLOW_CONTROL_PARALLELISM,
-    QSTASH_FORWARD_RETRIES,
-    QSTASH_FORWARD_TIMEOUT,
     QSTASH_RETRIES,
     QSTASH_RETRY_DELAY,
     QSTASH_TIMEOUT,
@@ -36,10 +30,6 @@ def publish_generation(generation_id: UUID) -> str:
             retries=QSTASH_RETRIES,
             retry_delay=QSTASH_RETRY_DELAY,
             timeout=QSTASH_TIMEOUT,
-            flow_control={
-                "key": QSTASH_FLOW_CONTROL_KEY,
-                "parallelism": QSTASH_FLOW_CONTROL_PARALLELISM,
-            },
             redact={"body": True},
         )
     except Exception as exc:
@@ -48,34 +38,6 @@ def publish_generation(generation_id: UUID) -> str:
     if not isinstance(message_id, str) or not message_id:
         raise PublishError("UnexpectedPublishResponse")
     return message_id
-
-
-def publish_forward(
-    *,
-    url: str,
-    body: str,
-    signature: str,
-    deduplication_id: str,
-) -> None:
-    _reject_secret_text(body)
-    client = _client()
-    try:
-        client.message.publish(
-            url=url,
-            body=body,
-            content_type="application/json",
-            headers={"X-Webhook-Signature": signature},
-            deduplication_id=deduplication_id,
-            retries=QSTASH_FORWARD_RETRIES,
-            timeout=QSTASH_FORWARD_TIMEOUT,
-            flow_control={
-                "key": QSTASH_FORWARD_FLOW_CONTROL_KEY,
-                "parallelism": QSTASH_FORWARD_FLOW_CONTROL_PARALLELISM,
-            },
-            redact={"body": True, "header": ["X-Webhook-Signature"]},
-        )
-    except Exception as exc:
-        raise PublishError(type(exc).__name__) from None
 
 
 def verify_delivery(*, body: str, signature: str | None) -> None:

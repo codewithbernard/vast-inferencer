@@ -6,7 +6,7 @@ VAST_WORKER_TIMEOUT_SECONDS = 600.0
 # and the sum must stay under VERCEL_MAX_DURATION_SECONDS.
 VAST_REQUEST_TIMEOUT_SECONDS = 160.0
 # Must match the worker's per-request workload (pyworker default: 100).
-VAST_REQUEST_COST = 33
+VAST_REQUEST_COST = 30
 VAST_MAX_RETRIES: int | None = None
 
 QSTASH_RETRIES = 2

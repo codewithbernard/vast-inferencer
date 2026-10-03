@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from fastapi import APIRouter, Request
@@ -5,12 +6,25 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from qstash.errors import SignatureError
 
+from vast_inferencer.config import get_settings
 from vast_inferencer.logging import log_event
 from vast_inferencer.models import GenerationJob
-from vast_inferencer.services.generations import run_claimed_generation
+from vast_inferencer.services.generations import run_claimed_generation, sweep_stuck_generations
 from vast_inferencer.services.qstash import verify_delivery
 
 router = APIRouter()
+
+
+@router.get("/internal/sweep")
+async def sweep(request: Request) -> JSONResponse:
+    cron_secret = get_settings().cron_secret
+    if cron_secret is None:
+        return JSONResponse(status_code=503, content={"detail": "Sweeper not configured"})
+    expected = f"Bearer {cron_secret.get_secret_value()}".encode()
+    if not hmac.compare_digest(request.headers.get("authorization", "").encode(), expected):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    failed = await sweep_stuck_generations()
+    return JSONResponse(status_code=200, content={"failed": failed})
 
 
 @router.post("/internal/generations")

@@ -12,3 +12,8 @@ VAST_MAX_RETRIES: int | None = None
 QSTASH_RETRIES = 2
 QSTASH_TIMEOUT = "810s"
 QSTASH_RETRY_DELAY = "pow(2, retried) * 1000"
+
+SWEEP_BATCH_SIZE = 50
+STUCK_RUNNING_SECONDS = VERCEL_MAX_DURATION_SECONDS + 60
+# Every QStash delivery attempt must have ended before a queued row counts as stuck.
+STUCK_QUEUED_SECONDS = (QSTASH_RETRIES + 1) * (VERCEL_MAX_DURATION_SECONDS + 60)

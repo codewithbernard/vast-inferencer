@@ -5,5 +5,11 @@
       "maxDuration": 800,
       "excludeFiles": "{.venv/**,**/*.egg-info/**}"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/internal/sweep",
+      "schedule": "*/2 * * * *"
+    }
+  ]
 }

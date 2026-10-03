@@ -8,14 +8,19 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import httpx
-from sqlalchemy import bindparam, select, text
+from sqlalchemy import and_, bindparam, or_, select, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vast_inferencer.crypto import decrypt_secret
 from vast_inferencer.db import session_scope
 from vast_inferencer.errors import ConflictError, NotFoundError, PublishFailedError
-from vast_inferencer.limits import VERCEL_MAX_DURATION_SECONDS
+from vast_inferencer.limits import (
+    STUCK_QUEUED_SECONDS,
+    STUCK_RUNNING_SECONDS,
+    SWEEP_BATCH_SIZE,
+    VERCEL_MAX_DURATION_SECONDS,
+)
 from vast_inferencer.logging import log_event, log_transition
 from vast_inferencer.models import GenerationDetail, GenerationPage, GenerationStatus
 from vast_inferencer.present import (
@@ -201,6 +206,7 @@ async def run_claimed_generation(generation_id: UUID) -> str:
     if prepared.action == "skipped":
         return "skipped"
     if prepared.action == "stale_failed" or prepared.action == "config_failed":
+        await notify_failure(generation_id)
         return "failed"
     context = prepared.context
     if context is None:
@@ -217,11 +223,13 @@ async def run_claimed_generation(generation_id: UUID) -> str:
             status_code=exc.status_code if isinstance(exc, VastTransportError) else None,
         )
         async with session_scope() as session:
-            await apply_worker_failure(session, generation_id, exc)
+            failed = await apply_worker_failure(session, generation_id, exc)
+        if failed:
+            await notify_failure(generation_id)
         return "failed"
     try:
         async with session_scope() as session:
-            await apply_vast_result(session, generation_id, result)
+            failed = await apply_vast_result(session, generation_id, result)
     except Exception as exc:
         log_event(
             logging.ERROR,
@@ -230,7 +238,9 @@ async def run_claimed_generation(generation_id: UUID) -> str:
             error_type=type(exc).__name__,
         )
         async with session_scope() as session:
-            await apply_worker_failure(session, generation_id, exc)
+            failed = await apply_worker_failure(session, generation_id, exc)
+    if failed:
+        await notify_failure(generation_id)
     return "done"
 
 
@@ -248,7 +258,7 @@ async def prepare_run(session: AsyncSession, generation_id: UUID) -> PreparedRun
             await _log_generation(session, generation, "queued", "worker")
         return PreparedRun("run", context)
 
-    generation = await session.get(Generation, generation_id)
+    generation = await _lock(session, generation_id)
     if generation is None:
         return PreparedRun("missing")
     if generation.status == "running" and _is_stale(generation.started_at):
@@ -273,10 +283,10 @@ async def apply_vast_result(
     session: AsyncSession,
     generation_id: UUID,
     result: dict[str, Any],
-) -> None:
+) -> bool:
     generation = await _lock(session, generation_id)
     if generation is None:
-        return
+        return False
     generation.raw_provider_response = result
     terminal, body = _interpret_vast(result)
     _assign_outputs(generation, body.get("output"), overwrite=True)
@@ -288,24 +298,105 @@ async def apply_vast_result(
     if _allow(generation.status, terminal):
         _finish(generation, terminal, body, result.get("status"))
         await _log_generation(session, generation, previous, "vast")
-        return
+        # The wrapper sends its own webhook for anything it answered with a status.
+        return terminal == "failed" and not isinstance(body.get("status"), str)
     generation.updated_at = _now()
+    return False
 
 
 async def apply_worker_failure(
     session: AsyncSession,
     generation_id: UUID,
     exc: Exception,
-) -> None:
+) -> bool:
     generation = await _lock(session, generation_id)
     if generation is None or not _allow(generation.status, "failed"):
-        return
+        return False
     previous = generation.status
     details: dict[str, Any] = {"error_type": type(exc).__name__}
     if isinstance(exc, VastTransportError) and exc.status_code is not None:
         details["status_code"] = exc.status_code
     _fail(generation, type(exc).__name__, details)
     await _log_generation(session, generation, previous, "worker")
+    return True
+
+
+async def sweep_stuck_generations() -> int:
+    now = _now()
+    running_cutoff = now - timedelta(seconds=STUCK_RUNNING_SECONDS)
+    queued_cutoff = now - timedelta(seconds=STUCK_QUEUED_SECONDS)
+    async with session_scope() as session:
+        stuck = (
+            await session.scalars(
+                select(Generation)
+                .where(
+                    or_(
+                        and_(
+                            Generation.status == "running",
+                            or_(
+                                Generation.started_at.is_(None),
+                                Generation.started_at < running_cutoff,
+                            ),
+                        ),
+                        and_(Generation.status == "queued", Generation.queued_at < queued_cutoff),
+                    )
+                )
+                .order_by(Generation.created_at)
+                .limit(SWEEP_BATCH_SIZE)
+                .with_for_update(skip_locked=True)
+            )
+        ).all()
+        for generation in stuck:
+            previous = generation.status
+            if previous == "running":
+                _fail(generation, "worker_lost", {"error_type": "WorkerLost"})
+            else:
+                _fail(generation, "never_started", {"error_type": "NeverStarted"})
+            await _log_generation(session, generation, previous, "sweeper")
+        failed_ids = [generation.id for generation in stuck]
+    for generation_id in failed_ids:
+        await notify_failure(generation_id)
+    return len(failed_ids)
+
+
+async def notify_failure(generation_id: UUID) -> None:
+    try:
+        async with session_scope() as session:
+            generation = await session.get(Generation, generation_id)
+            if generation is None or generation.status != "failed":
+                return
+            project = await session.get(Project, generation.project_id)
+            if project is None:
+                return
+            destination = generation.webhook_url_override or project.webhook_url
+            if not destination:
+                return
+            secret = decrypt_secret(project.webhook_secret_enc)
+            raw = json.dumps(_failure_webhook(generation), default=str).encode("utf-8")
+    except Exception as exc:
+        log_event(
+            logging.ERROR,
+            "failure_webhook_failed",
+            generation_id=str(generation_id),
+            error_type=type(exc).__name__,
+        )
+        return
+    signature = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    await _forward_webhook(destination, raw, signature, generation_id)
+
+
+def _failure_webhook(generation: Generation) -> dict[str, Any]:
+    extra = dict(generation.webhook_extra_params)
+    extra["project_id"] = str(generation.project_id)
+    extra["generation_id"] = str(generation.id)
+    return {
+        "id": str(generation.id),
+        "status": "failed",
+        "message": generation.error_message or "Generation failed",
+        "output": [],
+        "timings": {},
+        "extra": extra,
+    }
 
 
 async def record_webhook(raw: bytes, signature: str | None) -> None:

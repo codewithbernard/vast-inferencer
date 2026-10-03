@@ -59,6 +59,7 @@ Set these in `.env` locally and as encrypted environment variables on Vercel:
 | `API_BEARER_KEY` | Bearer token required by the management and generation routes |
 | `DATABASE_URL` | Neon Postgres URL. `sslmode=require` is accepted |
 | `SECRETS_ENCRYPTION_KEY` | Fernet key for project S3 and webhook secrets |
+| `CRON_SECRET` | Bearer token Vercel Cron sends to `/internal/sweep`. The sweeper returns `503` until it is set |
 
 Timeouts, retries, and QStash delivery limits are constants in [`src/vast_inferencer/limits.py`](src/vast_inferencer/limits.py).
 
@@ -156,6 +157,15 @@ When that webhook arrives, this service stores it, then POSTs the same body and 
 
 The wrapper payload and the `/generate/sync` result can both arrive. That is expected. A completed generation is not moved back to failed.
 
+The wrapper only sends a webhook for a job it ran. When this service fails a generation itself, it sends its own webhook with the wrapper's body shape (`id`, `status: "failed"`, `message`, `output`, `timings`, `extra`) and signs it with the project webhook secret. That happens when:
+
+- no worker accepted the job within `VAST_REQUEST_TIMEOUT_SECONDS`, or the worker call raised or timed out
+- the worker rejected the request before ComfyUI saw it
+- the stored result could not be saved
+- the sweeper or a later QStash delivery finds the generation stuck
+
+`message` is the stored `error_message`, such as `TimeoutError`, `worker_lost`, or `never_started`. A job cut off by the worker timeout can still finish, so a `completed` webhook may follow a `failed` one. Receivers should let `completed` win.
+
 ## Idempotency
 
 QStash delivery is at least once. The generation ID is the deduplication ID, and the claim update is the real guard:
@@ -167,6 +177,8 @@ WHERE id = :id AND status = 'queued'
 ```
 
 A delivery that loses the claim returns success and does not call Vast. If a claimed generation is still `running` after the Vercel function limit, a later delivery marks it `failed` with `worker_lost` and still does not start another GPU job.
+
+A killed function cannot report its own failure, and QStash may not deliver again. Vercel Cron calls `GET /internal/sweep` every two minutes. It fails generations that have been `running` longer than `STUCK_RUNNING_SECONDS` (`worker_lost`), or `queued` longer than `STUCK_QUEUED_SECONDS` (`never_started`), and sends the failure webhook for each.
 
 Permanent QStash failures return HTTP 489 with `Upstash-NonRetryable-Error: true`. Once a generation is claimed, worker failures are stored on the row and the delivery returns HTTP 200 so QStash does not launch a second attempt.
 

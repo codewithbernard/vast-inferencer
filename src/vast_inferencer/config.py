@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     api_bearer_key: SecretStr
     database_url: SecretStr
     secrets_encryption_key: SecretStr
+    cron_secret: SecretStr | None = None
     log_level: str = "INFO"
 
     @field_validator("qstash_url", "public_app_url", mode="before")
@@ -74,6 +75,7 @@ class Settings(BaseSettings):
             self.api_bearer_key.get_secret_value(),
             self.database_url.get_secret_value(),
             self.secrets_encryption_key.get_secret_value(),
+            self.cron_secret.get_secret_value() if self.cron_secret else "",
             *_remembered_secrets,
         ]
         return [value for value in values if value]
